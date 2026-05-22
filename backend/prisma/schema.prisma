@@ -1,0 +1,69 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("STUDENT") // "STUDENT" | "ADMIN"
+  attempts  Attempt[]
+  createdAt DateTime @default(now())
+}
+
+model Quiz {
+  id            Int        @id @default(autoincrement())
+  title         String
+  description   String?
+  duration      Int        // in minutes
+  totalMarks    Int
+  negativeMarks Float      @default(0.0)
+  isPublished   Boolean    @default(false)
+  questions     Question[]
+  attempts      Attempt[]
+  createdAt     DateTime   @default(now())
+}
+
+model Question {
+  id             Int             @id @default(autoincrement())
+  quizId         Int
+  quiz           Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionText   String
+  optionA        String
+  optionB        String
+  optionC        String
+  optionD        String
+  correctOption  String          // "A" | "B" | "C" | "D"
+  marks          Int             @default(1)
+  answersGiven   AttemptAnswer[]
+}
+
+model Attempt {
+  id              Int             @id @default(autoincrement())
+  userId          Int
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizId          Int
+  quiz            Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  score           Float           @default(0.0)
+  cheatingStrikes Int             @default(0)
+  status          String          @default("IN_PROGRESS") // "IN_PROGRESS" | "COMPLETED" | "FORCE_SUBMITTED"
+  startTime       DateTime        @default(now())
+  endTime         DateTime?
+  answers         AttemptAnswer[]
+}
+
+model AttemptAnswer {
+  id             Int      @id @default(autoincrement())
+  attemptId      Int
+  attempt        Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId     Int
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedOption String?  // "A" | "B" | "C" | "D" or null (unanswered)
+  isCorrect      Boolean  @default(false)
+}
