@@ -111,7 +111,7 @@ const deleteQuiz = async (req, res) => {
 
 const addQuestionToQuiz = async (req, res) => {
   const { id } = req.params; // Quiz ID
-  const { questionText, optionA, optionB, optionC, optionD, correctOption, marks } = req.body;
+  const { questionText, optionA, optionB, optionC, optionD, correctOption, questionType, marks } = req.body;
 
   if (!questionText || !optionA || !optionB || !optionC || !optionD || !correctOption) {
     return res.status(400).json({ error: 'Question text, all four options, and correctOption (A/B/C/D) are required' });
@@ -132,6 +132,7 @@ const addQuestionToQuiz = async (req, res) => {
         optionC,
         optionD,
         correctOption: correctOption.toUpperCase(),
+        questionType: questionType || 'SINGLE',
         marks: marks ? parseInt(marks) : 1
       }
     });
@@ -178,6 +179,7 @@ const getQuizQuestionsForStudent = async (req, res) => {
         optionB: true,
         optionC: true,
         optionD: true,
+        questionType: true,
         marks: true
       }
     });

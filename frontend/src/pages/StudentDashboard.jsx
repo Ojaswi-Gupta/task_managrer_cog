@@ -645,7 +645,9 @@ export default function StudentDashboard() {
                         <div>
                           <span style={{ color: 'var(--text-secondary)' }}>Your Selection: </span>
                           <strong style={{ color: studentChoice ? (isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)') : 'var(--text-muted)' }}>
-                            {studentChoice ? `${studentChoice}: ${ans.question[`option${studentChoice}`]}` : '[Unanswered]'}
+                            {studentChoice ? (
+                              studentChoice.split(',').map(choice => `${choice}: ${ans.question[`option${choice.trim()}`]}`).join(', ')
+                            ) : '[Unanswered]'}
                           </strong>
                         </div>
                         
@@ -653,7 +655,9 @@ export default function StudentDashboard() {
                           <div>
                             <span style={{ color: 'var(--text-secondary)' }}>Correct Answer Key: </span>
                             <strong style={{ color: 'var(--accent-success)' }}>
-                              {correctChoice}: {ans.question[`option${correctChoice}`]}
+                              {correctChoice ? (
+                                correctChoice.split(',').map(choice => `${choice}: ${ans.question[`option${choice.trim()}`]}`).join(', ')
+                              ) : ''}
                             </strong>
                           </div>
                         )}

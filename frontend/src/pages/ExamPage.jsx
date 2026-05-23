@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { AlertTriangle, Clock, ChevronLeft, ChevronRight, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Clock, ChevronLeft, ChevronRight, CheckCircle2, ShieldAlert, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -17,6 +17,7 @@ export default function ExamPage() {
   const [cheatingStrikes, setCheatingStrikes] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showRulesModal, setShowRulesModal] = useState(false);
 
   const countdownRef = useRef(null);
 
@@ -193,10 +194,27 @@ export default function ExamPage() {
   }, [loading, submitting, attemptId]);
 
   const handleSelectOption = (questionId, option) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: option
-    }));
+    const question = questions.find(q => q.id === questionId);
+    const isMultiple = question && question.questionType === 'MULTIPLE';
+
+    setAnswers(prev => {
+      const prevVal = prev[questionId] || '';
+      let newVal = '';
+      if (isMultiple) {
+        const currentSelections = prevVal ? prevVal.split(',') : [];
+        if (currentSelections.includes(option)) {
+          newVal = currentSelections.filter(o => o !== option).sort().join(',');
+        } else {
+          newVal = [...currentSelections, option].sort().join(',');
+        }
+      } else {
+        newVal = option;
+      }
+      return {
+        ...prev,
+        [questionId]: newVal
+      };
+    });
   };
 
   const handleAutoSubmit = async () => {
@@ -281,9 +299,29 @@ export default function ExamPage() {
       >
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: '700' }}>{quiz?.title}</h2>
-          <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Strict Evaluation Mode. Do not minimize this browser or switch tabs.
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>
+              Strict Evaluation Mode. Do not minimize this browser or switch tabs.
+            </p>
+            <button
+              className="glass-btn"
+              style={{
+                padding: '4px 10px',
+                fontSize: '11px',
+                borderColor: 'var(--accent-secondary)',
+                color: 'var(--accent-secondary)',
+                background: 'rgba(168, 85, 247, 0.04)',
+                borderRadius: '6px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                cursor: 'pointer'
+              }}
+              onClick={() => setShowRulesModal(true)}
+            >
+              <span>📜 View Exam Rules</span>
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
@@ -365,7 +403,9 @@ export default function ExamPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '32px' }}>
                 {['A', 'B', 'C', 'D'].map((opt) => {
                   const optText = currentQuestion[`option${opt}`];
-                  const isSelected = answers[currentQuestion.id] === opt;
+                  const isSelected = currentQuestion.questionType === 'MULTIPLE'
+                    ? (answers[currentQuestion.id] || '').split(',').includes(opt)
+                    : answers[currentQuestion.id] === opt;
                   return (
                     <button
                       key={opt}
@@ -389,7 +429,7 @@ export default function ExamPage() {
                         style={{
                           width: '28px',
                           height: '28px',
-                          borderRadius: '50%',
+                          borderRadius: currentQuestion.questionType === 'MULTIPLE' ? '6px' : '50%',
                           background: isSelected ? 'var(--accent-primary)' : 'rgba(255,255,255,0.06)',
                           color: isSelected ? 'white' : 'var(--text-secondary)',
                           display: 'flex',
@@ -609,6 +649,104 @@ export default function ExamPage() {
           </div>        </div>
 
       </div>
+
+      {/* 📜 INTERACTIVE EXAM RULES & RESTRICTIONS MODAL */}
+      {showRulesModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(10px)',
+            zIndex: 10000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              padding: '32px',
+              position: 'relative',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+              background: 'rgba(15, 23, 42, 0.9)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '16px'
+            }}
+          >
+            {/* Close Button */}
+            <button
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                outline: 'none'
+              }}
+              onClick={() => setShowRulesModal(false)}
+            >
+              <X size={20} />
+            </button>
+
+            <h3 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-secondary)' }}>
+              <span>📜 Exam Rules & Restrictions</span>
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '13px', lineHeight: '1.5', color: 'var(--text-secondary)' }}>
+              <p>
+                Please read the following academic integrity and technical guidelines carefully. Failure to comply will lead to automated disqualification.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <span style={{ color: 'var(--accent-danger)', fontWeight: '700' }}>1.</span>
+                  <span><strong>Tab-Switching Proctoring:</strong> Switching browser tabs, minimizing the window, or opening other applications will trigger an <strong>Integrity Strike</strong>.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <span style={{ color: 'var(--accent-danger)', fontWeight: '700' }}>2.</span>
+                  <span><strong>Three-Strike Disqualification:</strong> If you accumulate <strong>3 strikes</strong>, the quiz session is instantly terminated, automatically graded, and locked.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <span style={{ color: 'var(--accent-primary)', fontWeight: '700' }}>3.</span>
+                  <span><strong>Video Monitoring:</strong> Keep your face aligned with the webcam feed in the proctor sidebar. Maintain steady room lighting.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <span style={{ color: 'var(--accent-success)', fontWeight: '700' }}>4.</span>
+                  <span><strong>Sound Monitoring:</strong> Your microphone decibels are tracked dynamically to detect ambient discussions. Ensure a quiet background.</span>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <span style={{ color: 'var(--accent-warning)', fontWeight: '700' }}>5.</span>
+                  <span><strong>Negative Marking:</strong> Correct submissions award full marks, while incorrect answers deduct <strong>-{quiz?.negativeMarks || 0} marks</strong>. Skips award 0.</span>
+                </div>
+              </div>
+
+              <div style={{ marginTop: '12px', padding: '10px 14px', borderRadius: '8px', background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.2)', fontSize: '12px', color: 'var(--accent-primary)', textAlign: 'center', fontWeight: '600' }}>
+                🛡️ AI proctoring engines are active in this browser.
+              </div>
+            </div>
+
+            <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="glass-btn glass-btn-primary"
+                style={{ background: 'linear-gradient(135deg, var(--accent-secondary), #7c3aed)', padding: '8px 20px' }}
+                onClick={() => setShowRulesModal(false)}
+              >
+                I Understand
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

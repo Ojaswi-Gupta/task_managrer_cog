@@ -39,7 +39,8 @@ model Question {
   optionB        String
   optionC        String
   optionD        String
-  correctOption  String          // "A" | "B" | "C" | "D"
+  correctOption  String          // "A" | "B" | "C" | "D" or comma-separated like "A,C" for multiple
+  questionType   String          @default("SINGLE") // "SINGLE" | "MULTIPLE"
   marks          Int             @default(1)
   answersGiven   AttemptAnswer[]
 }

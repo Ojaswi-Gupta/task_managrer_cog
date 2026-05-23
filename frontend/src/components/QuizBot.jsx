@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 import { MessageSquareCode, X, Send, Bot, Sparkles, HelpCircle } from 'lucide-react';
 
 export default function QuizBot() {
   const { token } = useAuth();
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
     {
@@ -23,8 +25,8 @@ export default function QuizBot() {
     }
   }, [messages, isTyping]);
 
-  // Only render the chatbot if the user is authenticated/logged in
-  if (!token) return null;
+  // Only render the chatbot if the user is authenticated/logged in and NOT in an active exam session
+  if (!token || location.pathname.includes('/exam/')) return null;
 
   const quickChips = [
     { label: '📜 Proctoring Rules', query: 'What are the proctoring and anti-cheat rules?' },

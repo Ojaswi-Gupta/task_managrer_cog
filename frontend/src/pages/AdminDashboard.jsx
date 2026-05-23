@@ -73,6 +73,7 @@ export default function AdminDashboard() {
   const [optionC, setOptionC] = useState('');
   const [optionD, setOptionD] = useState('');
   const [correctOption, setCorrectOption] = useState('A');
+  const [questionType, setQuestionType] = useState('SINGLE');
   const [questionMarks, setQuestionMarks] = useState('1');
 
   // Review attempts details modal state
@@ -173,6 +174,7 @@ export default function AdminDashboard() {
         optionC,
         optionD,
         correctOption,
+        questionType,
         marks: parseInt(questionMarks)
       });
 
@@ -183,6 +185,7 @@ export default function AdminDashboard() {
       setOptionC('');
       setOptionD('');
       setCorrectOption('A');
+      setQuestionType('SINGLE');
       setQuestionMarks('1');
 
       // Refresh question list
@@ -620,15 +623,58 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Type</label>
+                    <select
+                      className="glass-input"
+                      required
+                      value={questionType}
+                      onChange={e => {
+                        setQuestionType(e.target.value);
+                        setCorrectOption(e.target.value === 'MULTIPLE' ? 'A' : 'A');
+                      }}
+                    >
+                      <option value="SINGLE">Single Choice (SCQ)</option>
+                      <option value="MULTIPLE">Multiple Choice (MCQ)</option>
+                    </select>
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Correct Option Key</label>
-                      <select className="glass-input" required value={correctOption} onChange={e => setCorrectOption(e.target.value)}>
-                        <option value="A">A</option>
-                        <option value="B">B</option>
-                        <option value="C">C</option>
-                        <option value="D">D</option>
-                      </select>
+                      {questionType === 'SINGLE' ? (
+                        <select className="glass-input" required value={correctOption} onChange={e => setCorrectOption(e.target.value)}>
+                          <option value="A">A</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="D">D</option>
+                        </select>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', height: '38px' }}>
+                          {['A', 'B', 'C', 'D'].map(ch => {
+                            const selectedKeys = correctOption.split(',');
+                            const isChecked = selectedKeys.includes(ch);
+                            return (
+                              <label key={ch} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={e => {
+                                    let newKeys;
+                                    if (e.target.checked) {
+                                      newKeys = [...selectedKeys.filter(k => k), ch];
+                                    } else {
+                                      newKeys = selectedKeys.filter(k => k !== ch);
+                                    }
+                                    setCorrectOption(newKeys.sort().join(','));
+                                  }}
+                                />
+                                <span>{ch}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -672,9 +718,23 @@ export default function AdminDashboard() {
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                            <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--accent-primary)' }}>
-                              Question {idx + 1} ({q.marks} Mark{q.marks !== 1 && 's'})
-                            </span>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--accent-primary)' }}>
+                                Question {idx + 1} ({q.marks} Mark{q.marks !== 1 && 's'})
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  background: q.questionType === 'MULTIPLE' ? 'rgba(168, 85, 247, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                  color: q.questionType === 'MULTIPLE' ? 'var(--accent-secondary)' : 'var(--accent-primary)'
+                                }}
+                              >
+                                {q.questionType === 'MULTIPLE' ? 'MCQ' : 'SCQ'}
+                              </span>
+                            </div>
                             <button
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-danger)' }}
                               onClick={() => handleDeleteQuestion(q.id)}
@@ -690,7 +750,7 @@ export default function AdminDashboard() {
                           {/* Options grid with green highlight for correctOption */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
                             {['A', 'B', 'C', 'D'].map(key => {
-                              const isCorrect = q.correctOption.toUpperCase() === key;
+                              const isCorrect = q.correctOption.split(',').includes(key);
                               return (
                                 <div
                                   key={key}
@@ -843,7 +903,9 @@ export default function AdminDashboard() {
                         <div>
                           <span style={{ color: 'var(--text-muted)' }}>Student Selection: </span>
                           <strong style={{ color: studentChoice ? (isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)') : 'var(--text-muted)' }}>
-                            {studentChoice ? `${studentChoice}: ${ans.question[`option${studentChoice}`]}` : '[Unanswered]'}
+                            {studentChoice ? (
+                              studentChoice.split(',').map(choice => `${choice}: ${ans.question[`option${choice.trim()}`]}`).join(', ')
+                            ) : '[Unanswered]'}
                           </strong>
                         </div>
                         
@@ -851,7 +913,9 @@ export default function AdminDashboard() {
                           <div>
                             <span style={{ color: 'var(--text-muted)' }}>Correct Answer: </span>
                             <strong style={{ color: 'var(--accent-success)' }}>
-                              {correctChoice}: {ans.question[`option${correctChoice}`]}
+                              {correctChoice ? (
+                                correctChoice.split(',').map(choice => `${choice}: ${ans.question[`option${choice.trim()}`]}`).join(', ')
+                              ) : ''}
                             </strong>
                           </div>
                         )}
