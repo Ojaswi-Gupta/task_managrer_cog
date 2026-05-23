@@ -22,13 +22,7 @@ export default function Login() {
 
     try {
       if (isRegister) {
-        const payload = await register(name, email, password);
-        // If registering with admin role (from visual dev check)
-        if (isAdmin) {
-          // In a real-world scenario, role is designated by the database, but for a 
-          // resume demo project, this role override is extremely convenient for interviewers to test.
-          // The database handles role overrides if passed in req.body as we coded.
-        }
+        const payload = await register(name, email, password, isAdmin ? 'ADMIN' : 'STUDENT');
         navigate(payload.user.role === 'ADMIN' ? '/admin' : '/');
       } else {
         const payload = await login(email, password);
