@@ -18,6 +18,12 @@ export default function ExamPage() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const [isCalibrated, setIsCalibrated] = useState(false);
+  const [isProctoringActive, setIsProctoringActive] = useState(false);
+  const [proctorWarning, setProctorWarning] = useState(null);
+  const [isDisqualified, setIsDisqualified] = useState(false);
+  const [fullscreenBreached, setFullscreenBreached] = useState(false);
+  const [fullscreenTimer, setFullscreenTimer] = useState(5);
 
   const countdownRef = useRef(null);
 
@@ -28,32 +34,47 @@ export default function ExamPage() {
   const audioStreamRef = useRef(null);
   const videoStreamRef = useRef(null);
 
+  const stopMediaStreams = () => {
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach(track => track.stop());
+      videoStreamRef.current = null;
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach(track => track.stop());
+      audioStreamRef.current = null;
+    }
+    setVolume(0);
+    setAudioWarning(false);
+  };
+
   // 📹 WEBCAM & AUDIO PROCTORING STREAM INITIALIZATION
   useEffect(() => {
+    if (!isCalibrated) return;
+
     let audioContext = null;
     let analyser = null;
     let dataArray = null;
     let animationFrameId = null;
 
-    // Start video stream
-    navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => {
-        videoStreamRef.current = stream;
+    const startStreams = async () => {
+      // 1. Request camera stream
+      try {
+        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        videoStreamRef.current = videoStream;
         if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+          videoRef.current.srcObject = videoStream;
         }
-      })
-      .catch(err => {
+      } catch (err) {
         console.warn("Webcam proctoring permission denied or unavailable:", err);
-      });
+      }
 
-    // Start audio decibel visualizer
-    navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(stream => {
-        audioStreamRef.current = stream;
+      // 2. Request microphone stream
+      try {
+        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioStreamRef.current = audioStream;
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioContext.createAnalyser();
-        const source = audioContext.createMediaStreamSource(stream);
+        const source = audioContext.createMediaStreamSource(audioStream);
         source.connect(analyser);
         analyser.fftSize = 32;
         const bufferLength = analyser.frequencyBinCount;
@@ -78,19 +99,23 @@ export default function ExamPage() {
           animationFrameId = requestAnimationFrame(updateDecibels);
         };
         updateDecibels();
-      })
-      .catch(err => {
+      } catch (err) {
         console.warn("Microphone proctoring permission denied or unavailable:", err);
-      });
+      }
+
+      // 3. Mark media calibration complete and activate secure proctoring after 1.2s delay
+      // This delay ensures native permission dialogs are closed and page focus is fully restored!
+      setTimeout(() => {
+        setIsProctoringActive(true);
+        console.log("[ProctorSystem] Media calibration completed. Proctoring active!");
+      }, 1200);
+    };
+
+    startStreams();
 
     // Clean up streams on unmount
     return () => {
-      if (videoStreamRef.current) {
-        videoStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-      if (audioStreamRef.current) {
-        audioStreamRef.current.getTracks().forEach(track => track.stop());
-      }
+      stopMediaStreams();
       if (audioContext) {
         audioContext.close();
       }
@@ -98,7 +123,7 @@ export default function ExamPage() {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, []);
+  }, [isCalibrated]);
 
   // 1. Initial Load: Fetch Quiz and Questions, and Synchronize Attempt Timer
   useEffect(() => {
@@ -150,7 +175,7 @@ export default function ExamPage() {
 
   // 2. Resilient Timer Thread
   useEffect(() => {
-    if (remainingSeconds === null || remainingSeconds <= 0) return;
+    if (!isCalibrated || remainingSeconds === null || remainingSeconds <= 0) return;
 
     countdownRef.current = setInterval(() => {
       setRemainingSeconds((prev) => {
@@ -164,13 +189,88 @@ export default function ExamPage() {
     }, 1000);
 
     return () => clearInterval(countdownRef.current);
-  }, [remainingSeconds]);
+  }, [isCalibrated, remainingSeconds]);
+
+  // Fullscreen breach countdown timer
+  useEffect(() => {
+    if (!fullscreenBreached) {
+      setFullscreenTimer(5);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setFullscreenTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setCheatingStrikes(3);
+          setIsDisqualified(true);
+          handleBrutalSubmit();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [fullscreenBreached]);
+
+  const handleBrutalSubmit = async () => {
+    stopMediaStreams();
+    setSubmitting(true);
+    try {
+      const formattedAnswers = Object.entries(answers).map(([qid, val]) => ({
+        questionId: parseInt(qid),
+        selectedOption: val
+      }));
+      await axios.post(`${API_URL}/attempts/submit`, {
+        attemptId: parseInt(attemptId),
+        answers: formattedAnswers
+      });
+      setTimeout(() => {
+        navigate('/');
+      }, 3000);
+    } catch (err) {
+      console.error(err);
+      navigate('/');
+    }
+  };
+
+  const handleReenterFullscreen = async () => {
+    try {
+      const docEl = document.documentElement;
+      if (docEl.requestFullscreen) {
+        await docEl.requestFullscreen();
+      } else if (docEl.webkitRequestFullscreen) {
+        await docEl.webkitRequestFullscreen();
+      } else if (docEl.mozRequestFullScreen) {
+        await docEl.mozRequestFullScreen();
+      } else if (docEl.msRequestFullscreen) {
+        await docEl.msRequestFullscreen();
+      }
+      setFullscreenBreached(false);
+      setFullscreenTimer(5);
+    } catch (err) {
+      console.warn("Could not re-enter fullscreen:", err);
+    }
+  };
+
+  // Canonical React Side-effects for Cheating Strikes
+  useEffect(() => {
+    if (cheatingStrikes === 0 || loading || submitting) return;
+
+    if (cheatingStrikes >= 3) {
+      stopMediaStreams();
+      setIsDisqualified(true);
+      handleBrutalSubmit();
+    } else {
+      setProctorWarning(`⚠️ INTEGRITY WARNING: Focus loss, fullscreen exit, or tab switch detected! Strike ${cheatingStrikes}/3 registered. (Auto-submits on Strike 3)`);
+    }
+  }, [cheatingStrikes]);
 
   // 3. PROCTORING: Bulletproof Tab Switching & Window Focus Proctoring
   useEffect(() => {
-    if (loading || submitting) return;
+    if (!isProctoringActive || loading || submitting) return;
 
-    let pendingWarning = null;
     let lastViolationTime = 0;
 
     const recordViolation = async () => {
@@ -178,74 +278,254 @@ export default function ExamPage() {
       if (now - lastViolationTime < 2000) return; // 2-second cooldown to prevent duplicate triggers (blur + hide)
       lastViolationTime = now;
 
+      // Increment strikes client-side instantly
+      setCheatingStrikes(prev => prev + 1);
+
+      // Synchronize to backend in the background
       try {
-        const res = await axios.post(`${API_URL}/attempts/violation`, { attemptId });
-        
-        const isTerminated = res.data.status === 'COMPLETED' || res.data.status === 'FORCE_SUBMITTED' || res.data.cheatingStrikes >= 3;
-        const updatedStrikes = res.data.cheatingStrikes || 3;
-        
-        setCheatingStrikes(updatedStrikes);
-
-        if (isTerminated) {
-          pendingWarning = {
-            type: 'terminated',
-            message: '🚫 EXAM TERMINATED: You switched tabs or left the exam window 3 times. Your quiz has been locked and automatically submitted.'
-          };
-        } else {
-          pendingWarning = {
-            type: 'warning',
-            message: `⚠️ PROCTORING WARNING: Focus loss or tab switch detected!\nStrikes: ${updatedStrikes}/3. The quiz will auto-submit on strike 3!`
-          };
-        }
-
-        // If the student is currently looking at our page, show it immediately
-        if (!document.hidden && document.hasFocus()) {
-          triggerPendingWarning();
-        }
+        await axios.post(`${API_URL}/attempts/violation`, { attemptId });
       } catch (err) {
-        console.error('Failed to record tab violation:', err);
-      }
-    };
-
-    const triggerPendingWarning = () => {
-      if (!pendingWarning) return;
-      const { type, message } = pendingWarning;
-      pendingWarning = null; // Clear it so it doesn't double-trigger
-
-      if (type === 'terminated') {
-        alert(message);
-        navigate('/');
-      } else {
-        alert(message);
+        console.error('Failed to record tab violation on server:', err);
       }
     };
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
         recordViolation();
-      } else {
-        triggerPendingWarning();
       }
+    };
+
+    const checkFullscreenState = () => {
+      const isHTML5FS = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+
+      console.log("[Proctoring Debug] Fullscreen State Checked:", {
+        isHTML5FullscreenActive: isHTML5FS,
+        fullscreenElement: document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height
+      });
+
+      const active = isHTML5FS;
+
+      if (!active && !isDisqualified) {
+        setFullscreenBreached(true);
+        recordViolation();
+      }
+    };
+
+    const handleFullscreenChange = () => {
+      checkFullscreenState();
+    };
+
+    const handleResize = () => {
+      checkFullscreenState();
     };
 
     const handleBlur = () => {
       recordViolation();
     };
 
-    const handleFocus = () => {
-      triggerPendingWarning();
+    const handleCopyCutPaste = (e) => {
+      e.preventDefault();
+      if (e.clipboardData) {
+        e.clipboardData.setData('text/plain', '⚠️ COPYING PROHIBITED IN SECURE EXAM ⚠️');
+      }
+      setProctorWarning("🚫 COPY/PASTE BLOCKED: Copying, cutting, or pasting text is strictly prohibited during this secure assessment!");
     };
+
+    const handleKeyDown = (e) => {
+      // 1. Capture Escape Key and trigger breach instantly on first press
+      if (e.key === 'Escape' || e.keyCode === 27) {
+        if (!isDisqualified) {
+          console.log("[ProctorSystem] Escape key exit detected! Triggering breach overlay.");
+          setFullscreenBreached(true);
+          recordViolation();
+        }
+      }
+
+      // 2. Block Developer Tools (F12)
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault();
+        setProctorWarning("🚫 DEVTOOLS BLOCKED: Accessing Developer Tools is strictly prohibited during this secure assessment!");
+      }
+
+      // 3. Block Ctrl+Shift+I / Cmd+Opt+I (Inspect element)
+      if ((e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.keyCode === 73)) || 
+          (e.metaKey && e.altKey && (e.key === 'I' || e.key === 'i' || e.keyCode === 73))) {
+        e.preventDefault();
+        setProctorWarning("🚫 DEVTOOLS BLOCKED: Accessing Developer Tools is strictly prohibited during this secure assessment!");
+      }
+
+      // 4. Block Ctrl+U / Cmd+Opt+U (View source)
+      if ((e.ctrlKey && (e.key === 'U' || e.key === 'u' || e.keyCode === 85)) || 
+          (e.metaKey && e.altKey && (e.key === 'U' || e.key === 'u' || e.keyCode === 85))) {
+        e.preventDefault();
+        setProctorWarning("🚫 VIEW SOURCE BLOCKED: Viewing page source code is strictly prohibited during this secure assessment!");
+      }
+
+      // 5. Block F11 (Browser Fullscreen Toggle)
+      if (e.key === 'F11' || e.keyCode === 122) {
+        e.preventDefault();
+      }
+    };
+
+    const handleFullscreenError = () => {
+      console.log("[ProctorSystem] Fullscreen error event fired! Triggering breach overlay.");
+      setFullscreenBreached(true);
+      recordViolation();
+    };
+
+    console.log("[ProctorSystem] 🔒 Secure proctoring event listeners successfully attached!");
+
+    // Shield modern clipboard API from browser extensions
+    const originalWriteText = navigator.clipboard ? navigator.clipboard.writeText : null;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText = async () => {
+        console.warn("[ProctorSystem] Blocked writeText clipboard write.");
+        return Promise.resolve();
+      };
+    }
+
+    // Initial check after 800ms to verify secure fullscreen is active
+    const initialCheckTimeout = setTimeout(() => {
+      const active = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+      console.log("[ProctorSystem] Initial Fullscreen Check completed. Active:", active);
+      if (!active && !isDisqualified) {
+        setFullscreenBreached(true);
+        recordViolation();
+      }
+    }, 800);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    document.addEventListener('fullscreenerror', handleFullscreenError);
+    document.addEventListener('webkitfullscreenerror', handleFullscreenError);
+    document.addEventListener('mozfullscreenerror', handleFullscreenError);
+    document.addEventListener('MSFullscreenError', handleFullscreenError);
+    document.addEventListener('copy', handleCopyCutPaste);
+    document.addEventListener('cut', handleCopyCutPaste);
+    document.addEventListener('paste', handleCopyCutPaste);
     window.addEventListener('blur', handleBlur);
-    window.addEventListener('focus', handleFocus);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('keydown', handleKeyDown, true);
 
     return () => {
+      console.log("[ProctorSystem] 🔓 Secure proctoring event listeners cleaned up!");
+      clearTimeout(initialCheckTimeout);
+      if (navigator.clipboard && originalWriteText) {
+        navigator.clipboard.writeText = originalWriteText;
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      document.removeEventListener('fullscreenerror', handleFullscreenError);
+      document.removeEventListener('webkitfullscreenerror', handleFullscreenError);
+      document.removeEventListener('mozfullscreenerror', handleFullscreenError);
+      document.removeEventListener('MSFullscreenError', handleFullscreenError);
+      document.removeEventListener('copy', handleCopyCutPaste);
+      document.removeEventListener('cut', handleCopyCutPaste);
+      document.removeEventListener('paste', handleCopyCutPaste);
       window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [loading, submitting, attemptId]);
+  }, [isProctoringActive, loading, submitting, attemptId, isDisqualified]);
+
+  // Dynamic Global Clipboard and Selection Lockout CSS & Polling Selection Cleaner
+  useEffect(() => {
+    if (!isProctoringActive || loading || submitting) return;
+
+    // 1. Inject global selection lockout styles
+    const styleEl = document.createElement('style');
+    styleEl.id = 'exam-lockout-styles';
+    styleEl.innerHTML = `
+      * {
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        cursor: default !important;
+      }
+      
+      /* Block dragging of any text/images/elements */
+      img, a, p, h1, h2, h3, h4, h5, h6, span, div, li, button {
+        -webkit-user-drag: none !important;
+        user-drag: none !important;
+        -webkit-touch-callout: none !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+
+    // 2. Active 100ms Selection Clearing Loop to defeat highlights/anti-proctor extensions
+    const selectionCleaner = setInterval(() => {
+      try {
+        if (window.getSelection) {
+          window.getSelection().removeAllRanges();
+        } else if (document.selection) {
+          document.selection.empty();
+        }
+      } catch (err) {
+        // Silent catch
+      }
+    }, 100);
+
+    return () => {
+      const el = document.getElementById('exam-lockout-styles');
+      if (el) el.remove();
+      clearInterval(selectionCleaner);
+    };
+  }, [isProctoringActive, loading, submitting]);
+
+  // ⚡ Bulletproof 300ms Fullscreen State Polling Check
+  useEffect(() => {
+    if (!isProctoringActive || loading || submitting || isDisqualified) return;
+
+    // We allow a 1-second delay to allow the initial fullscreen transition animation
+    let transitionComplete = false;
+    const transitionTimer = setTimeout(() => {
+      transitionComplete = true;
+    }, 1000);
+
+    const pollingInterval = setInterval(() => {
+      if (!transitionComplete) return;
+
+      const active = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+
+      // If they exited fullscreen and the breach overlay is not already shown
+      if (!active && !fullscreenBreached) {
+        console.log("[ProctorSystem] Polling detected fullscreen exit! Triggering breach overlay.");
+        setFullscreenBreached(true);
+        recordViolation();
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(transitionTimer);
+      clearInterval(pollingInterval);
+    };
+  }, [isProctoringActive, loading, submitting, isDisqualified, fullscreenBreached, attemptId]);
 
   const handleSelectOption = (questionId, option) => {
     const question = questions.find(q => q.id === questionId);
@@ -273,6 +553,7 @@ export default function ExamPage() {
 
   const handleAutoSubmit = async () => {
     if (submitting) return;
+    stopMediaStreams();
     setSubmitting(true);
     alert('⏱️ TIME OUT: Your duration has expired. Submitting your quiz now.');
 
@@ -296,6 +577,7 @@ export default function ExamPage() {
     const confirmSubmit = window.confirm('Are you sure you want to finish and submit your quiz answers?');
     if (!confirmSubmit) return;
 
+    stopMediaStreams();
     setSubmitting(true);
     try {
       const formattedAnswers = Object.entries(answers).map(([qid, val]) => ({
@@ -332,11 +614,78 @@ export default function ExamPage() {
     );
   }
 
+  if (!isCalibrated) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'radial-gradient(circle at center, #0f172a, #020617)',
+        padding: '24px',
+        color: 'white'
+      }}>
+        <div className="glass-panel" style={{ maxWidth: '500px', padding: '40px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--glass-border)', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', borderRadius: '16px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>
+            <span className="shimmer-text">Secure Assessment Portal</span>
+          </h2>
+          
+          <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-secondary)', margin: 0 }}>
+            Before launching the assessment, the AI proctor must lock the screen into **Fullscreen Mode** and calibrate your camera/microphone.
+          </p>
+
+          <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'left', fontSize: '12px', color: 'var(--accent-danger)' }}>
+            <strong>⚠️ ANTI-CHEAT COMPLIANCE REQUIRED:</strong>
+            <ul style={{ margin: '8px 0 0 16px', padding: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <li>Leaving Fullscreen mode counts as an Integrity Strike.</li>
+              <li>Switching tabs or clicking outside this window counts as an Integrity Strike.</li>
+              <li>A maximum of 2 strikes is allowed; the 3rd strike triggers automatic submission.</li>
+            </ul>
+          </div>
+
+          <button
+            className="glass-btn glass-btn-primary"
+            style={{
+              padding: '12px 24px',
+              fontSize: '15px',
+              fontWeight: '700',
+              background: 'linear-gradient(135deg, var(--accent-primary), #4f46e5)',
+              boxShadow: '0 8px 24px rgba(99, 102, 241, 0.25)',
+              cursor: 'pointer'
+            }}
+            onClick={async () => {
+              try {
+                const docEl = document.documentElement;
+                if (docEl.requestFullscreen) {
+                  await docEl.requestFullscreen();
+                } else if (docEl.webkitRequestFullscreen) {
+                  await docEl.webkitRequestFullscreen();
+                } else if (docEl.mozRequestFullScreen) {
+                  await docEl.mozRequestFullScreen();
+                } else if (docEl.msRequestFullscreen) {
+                  await docEl.msRequestFullscreen();
+                }
+              } catch (err) {
+                console.warn("Fullscreen permission denied or unsupported:", err);
+              }
+              setIsCalibrated(true);
+            }}
+          >
+            Launch Assessment & Fullscreen
+          </button>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '-8px' }}>
+            🛡️ Proctor V2 Active (Strict Fullscreen Exit Hook)
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const currentQuestion = questions[currentIdx];
   const isLastQuestion = currentIdx === questions.length - 1;
 
   return (
-    <div style={{ minHeight: '100vh', padding: '24px' }}>
+    <div style={{ minHeight: '100vh', padding: '24px', userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' }}>
       
       {/* Dynamic Proctored Sub-Header */}
       <div
@@ -375,6 +724,22 @@ export default function ExamPage() {
             >
               <span>📜 View Exam Rules</span>
             </button>
+            <span
+              style={{
+                padding: '3px 8px',
+                fontSize: '10px',
+                fontWeight: '700',
+                background: 'rgba(16, 185, 129, 0.12)',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+                color: 'var(--accent-success)',
+                borderRadius: '12px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              🛡️ Proctor V2 Active
+            </span>
           </div>
         </div>
 
@@ -425,7 +790,64 @@ export default function ExamPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '3fr 1fr', gap: '24px' }}>
         
         {/* MCQ QUESTION WORKSPACE */}
-        <div className="glass-panel" style={{ padding: '32px' }}>
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '32px', 
+            userSelect: 'none', 
+            WebkitUserSelect: 'none', 
+            MozUserSelect: 'none', 
+            msUserSelect: 'none',
+            position: 'relative',
+            filter: !isProctoringActive ? 'blur(12px)' : 'none',
+            pointerEvents: !isProctoringActive ? 'none' : 'auto',
+            transition: 'filter 0.3s ease-in-out'
+          }}
+        >
+          {!isProctoringActive && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10,
+              gap: '12px',
+              padding: '24px',
+              background: 'rgba(15, 23, 42, 0.25)',
+              borderRadius: 'inherit'
+            }}>
+              <div 
+                className="shimmer-text" 
+                style={{ 
+                  fontSize: '18px', 
+                  fontWeight: '800', 
+                  color: 'white',
+                  textShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span>🔒 Secure Workspace Locked</span>
+              </div>
+              <p style={{ 
+                fontSize: '13px', 
+                color: '#cbd5e1', 
+                margin: 0, 
+                maxWidth: '320px', 
+                textAlign: 'center',
+                lineHeight: '1.5',
+                textShadow: '0 2px 4px rgba(0,0,0,0.5)'
+              }}>
+                Calibrating media sensors and establishing secure HTML5 Fullscreen space. Unlocking instantly upon completion...
+              </p>
+            </div>
+          )}
           {questions.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>No questions loaded for this quiz.</div>
           ) : (
@@ -535,7 +957,18 @@ export default function ExamPage() {
           )}
         </div>
         {/* SIDEBAR NAVIGATION COLUMN */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignSelf: 'start', width: '100%' }}>
+        <div 
+          style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '24px', 
+            alignSelf: 'start', 
+            width: '100%',
+            filter: !isProctoringActive ? 'blur(8px)' : 'none',
+            pointerEvents: !isProctoringActive ? 'none' : 'auto',
+            transition: 'filter 0.3s ease-in-out'
+          }}
+        >
           
           {/* Question Sheet Panel */}
           <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -797,6 +1230,181 @@ export default function ExamPage() {
               >
                 I Understand
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ⚠️ Bottom Proctor Warning Toast */}
+      {proctorWarning && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '90%',
+          maxWidth: '680px',
+          background: 'rgba(220, 38, 38, 0.95)',
+          backdropFilter: 'blur(16px)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: '12px',
+          padding: '16px 20px',
+          boxShadow: '0 10px 40px rgba(220, 38, 38, 0.3)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '16px',
+          zIndex: 9999,
+          color: 'white'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <AlertTriangle size={24} style={{ color: '#FEE2E2', flexShrink: 0 }} />
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ margin: 0, fontWeight: '700', fontSize: '13.5px' }}>
+                {proctorWarning}
+              </p>
+              <span style={{ fontSize: '11px', color: '#FCA5A5' }}>
+                Proctor Warning Logged. Strikes are persistent in the exam database.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => setProctorWarning(null)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.15)',
+              border: 'none',
+              borderRadius: '6px',
+              color: 'white',
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              outline: 'none',
+              transition: 'background 0.2s'
+            }}
+          >
+            Acknowledge
+          </button>
+        </div>
+      )}
+
+      {/* ⚠️ Fullscreen Breach Recovery Overlay */}
+      {fullscreenBreached && !isDisqualified && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.96)',
+          backdropFilter: 'blur(20px)',
+          zIndex: 10001,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          color: 'white'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '500px',
+            padding: '40px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '24px',
+            border: '2px solid rgba(239, 68, 68, 0.4)',
+            boxShadow: '0 25px 50px rgba(239, 68, 68, 0.25)',
+            borderRadius: '16px'
+          }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0, color: 'var(--accent-danger)' }}>
+              ⚠️ Fullscreen Requirement Disrupted
+            </h2>
+            
+            <p style={{ fontSize: '14.5px', lineHeight: '1.6', color: 'var(--text-secondary)', margin: 0 }}>
+              Fullscreen mode was exited! To maintain examination integrity, you must re-enter fullscreen immediately.
+            </p>
+
+            <div style={{
+              padding: '16px',
+              borderRadius: '10px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              fontSize: '18px',
+              fontWeight: '800',
+              color: 'var(--accent-danger)'
+            }}>
+              🚨 Disqualification in: {fullscreenTimer}s
+            </div>
+
+            <button
+              className="glass-btn glass-btn-primary"
+              style={{
+                padding: '12px 24px',
+                fontSize: '15px',
+                fontWeight: '700',
+                background: 'linear-gradient(135deg, var(--accent-danger), #b91c1c)',
+                boxShadow: '0 8px 24px rgba(239, 68, 68, 0.25)',
+                cursor: 'pointer'
+              }}
+              onClick={handleReenterFullscreen}
+            >
+              📺 Re-enter Secure Fullscreen
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 🚫 Disqualified Terminated Overlay */}
+      {isDisqualified && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(2, 6, 23, 0.98)',
+          backdropFilter: 'blur(30px)',
+          zIndex: 10002,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          color: 'white'
+        }}>
+          <div className="glass-panel" style={{
+            maxWidth: '520px',
+            padding: '48px 40px',
+            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '24px',
+            border: '2px solid rgba(239, 68, 68, 0.6)',
+            boxShadow: '0 25px 60px rgba(239, 68, 68, 0.3)',
+            borderRadius: '20px'
+          }}>
+            <span style={{ fontSize: '48px' }}>🚫</span>
+            <h2 style={{ fontSize: '26px', fontWeight: '800', margin: 0, color: 'var(--accent-danger)' }}>
+              Assessment Terminated
+            </h2>
+            
+            <p style={{ fontSize: '15px', lineHeight: '1.6', color: 'var(--text-secondary)', margin: 0 }}>
+              You have been disqualified for committing **3 proctoring strikes** (including tab-switching, exiting fullscreen, or losing window focus).
+            </p>
+
+            <div style={{
+              padding: '16px',
+              borderRadius: '10px',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              fontSize: '12.5px',
+              color: 'var(--text-muted)',
+              lineHeight: '1.4'
+            }}>
+              Your answers have been locked and submitted to the evaluation center. You will be redirected shortly.
+            </div>
+
+            <div style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '700', marginTop: '12px' }}>
+              Redirecting to dashboard...
             </div>
           </div>
         </div>
