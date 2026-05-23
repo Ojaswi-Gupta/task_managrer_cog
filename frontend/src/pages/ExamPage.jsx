@@ -166,31 +166,85 @@ export default function ExamPage() {
     return () => clearInterval(countdownRef.current);
   }, [remainingSeconds]);
 
-  // 3. PROCTORING: Tab Switching Visibility Listener (Interview Booster!)
+  // 3. PROCTORING: Bulletproof Tab Switching & Window Focus Proctoring
   useEffect(() => {
     if (loading || submitting) return;
 
-    const handleVisibilityChange = async () => {
-      if (document.hidden) {
-        try {
-          const res = await axios.post(`${API_URL}/attempts/violation`, { attemptId });
-          const updatedStrikes = res.data.cheatingStrikes;
-          setCheatingStrikes(updatedStrikes);
+    let pendingWarning = null;
+    let lastViolationTime = 0;
 
-          if (updatedStrikes >= 3) {
-            alert('🚫 EXAM TERMINATED: You switched tabs 3 times. Your quiz has been locked and automatically submitted.');
-            navigate('/');
-          } else {
-            alert(`⚠️ PROCTORING WARNING: Tab switch detected!\nStrikes: ${updatedStrikes}/3. The quiz will auto-submit on strike 3!`);
-          }
-        } catch (err) {
-          console.error('Failed to record tab violation:', err);
+    const recordViolation = async () => {
+      const now = Date.now();
+      if (now - lastViolationTime < 2000) return; // 2-second cooldown to prevent duplicate triggers (blur + hide)
+      lastViolationTime = now;
+
+      try {
+        const res = await axios.post(`${API_URL}/attempts/violation`, { attemptId });
+        
+        const isTerminated = res.data.status === 'COMPLETED' || res.data.status === 'FORCE_SUBMITTED' || res.data.cheatingStrikes >= 3;
+        const updatedStrikes = res.data.cheatingStrikes || 3;
+        
+        setCheatingStrikes(updatedStrikes);
+
+        if (isTerminated) {
+          pendingWarning = {
+            type: 'terminated',
+            message: '🚫 EXAM TERMINATED: You switched tabs or left the exam window 3 times. Your quiz has been locked and automatically submitted.'
+          };
+        } else {
+          pendingWarning = {
+            type: 'warning',
+            message: `⚠️ PROCTORING WARNING: Focus loss or tab switch detected!\nStrikes: ${updatedStrikes}/3. The quiz will auto-submit on strike 3!`
+          };
         }
+
+        // If the student is currently looking at our page, show it immediately
+        if (!document.hidden && document.hasFocus()) {
+          triggerPendingWarning();
+        }
+      } catch (err) {
+        console.error('Failed to record tab violation:', err);
       }
     };
 
+    const triggerPendingWarning = () => {
+      if (!pendingWarning) return;
+      const { type, message } = pendingWarning;
+      pendingWarning = null; // Clear it so it doesn't double-trigger
+
+      if (type === 'terminated') {
+        alert(message);
+        navigate('/');
+      } else {
+        alert(message);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        recordViolation();
+      } else {
+        triggerPendingWarning();
+      }
+    };
+
+    const handleBlur = () => {
+      recordViolation();
+    };
+
+    const handleFocus = () => {
+      triggerPendingWarning();
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [loading, submitting, attemptId]);
 
   const handleSelectOption = (questionId, option) => {
