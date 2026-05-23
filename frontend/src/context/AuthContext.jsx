@@ -9,6 +9,17 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'midnight');
+
+  // Sync theme to body class
+  useEffect(() => {
+    document.body.className = `theme-${theme}`;
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'midnight' ? 'aurora' : 'midnight');
+  };
 
   // Set Authorization headers globally for Axios
   useEffect(() => {
@@ -59,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, theme, toggleTheme }}>
       {!loading && children}
     </AuthContext.Provider>
   );

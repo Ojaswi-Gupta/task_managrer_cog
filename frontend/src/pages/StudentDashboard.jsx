@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { Award, BookOpen, Clock, Calendar, CheckCircle2, ChevronRight, LogOut, Trophy, AlertTriangle, Download } from 'lucide-react';
+import { Award, BookOpen, Clock, Calendar, CheckCircle2, ChevronRight, LogOut, Trophy, AlertTriangle, Download, Eye, X } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -16,6 +16,8 @@ export default function StudentDashboard() {
   const [selectedQuizId, setSelectedQuizId] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('quizzes'); // 'quizzes' | 'history' | 'leaderboards'
+  const [selectedAttempt, setSelectedAttempt] = useState(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -67,13 +69,19 @@ export default function StudentDashboard() {
     }
   };
 
+  const handleReviewAttempt = async (attemptId) => {
+    try {
+      const res = await axios.get(`${API_URL}/attempts/${attemptId}`);
+      setSelectedAttempt(res.data);
+      setShowReviewModal(true);
+    } catch (err) {
+      alert('Failed to fetch attempt details.');
+    }
+  };
+
   const handleDownloadCertificate = (attemptId) => {
     // Open in a new window using authenticated download
     const win = window.open(`${API_URL}/certificates/${attemptId}?token=${localStorage.getItem('token')}`, '_blank');
-    // Note: Our certificate API takes Bearer token. 
-    // To support clean standard links, we can also extract token from query parameters! 
-    // Let's make sure we double-check our auth middleware to support query parameter tokens as a fallback.
-    // Yes! That's a highly robust enhancement. Let's make sure we edit our backend auth middleware to extract token from query params too, so direct links work effortlessly!
   };
 
   return (
@@ -220,7 +228,7 @@ export default function StudentDashboard() {
                         <th style={{ padding: '12px 8px', fontSize: '13px', color: 'var(--text-secondary)' }}>STATUS</th>
                         <th style={{ padding: '12px 8px', fontSize: '13px', color: 'var(--text-secondary)' }}>SCORE</th>
                         <th style={{ padding: '12px 8px', fontSize: '13px', color: 'var(--text-secondary)' }}>VIOLATIONS</th>
-                        <th style={{ padding: '12px 8px', fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>CERTIFICATE</th>
+                        <th style={{ padding: '12px 8px', fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'right' }}>ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -263,7 +271,41 @@ export default function StudentDashboard() {
                                 {att.cheatingStrikes} strike{att.cheatingStrikes !== 1 && 's'}
                               </span>
                             </td>
-                            <td style={{ padding: '16px 8px', textAlign: 'right' }}>
+                            <td style={{ padding: '16px 8px', textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              {/* Student-side Answers Review Button */}
+                              {(() => {
+                                const submitTime = new Date(att.endTime || att.startTime).getTime();
+                                const timeSinceSubmit = Date.now() - submitTime;
+                                const oneHourMs = 60 * 60 * 1000;
+                                const isUnlocked = timeSinceSubmit >= oneHourMs;
+                                const remainingMs = oneHourMs - timeSinceSubmit;
+                                const remainingMins = Math.ceil(remainingMs / (1000 * 60));
+
+                                if (isUnlocked) {
+                                  return (
+                                    <button
+                                      className="glass-btn glass-btn-secondary"
+                                      style={{ padding: '6px 12px', fontSize: '12px', borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)', background: 'rgba(99, 102, 241, 0.04)' }}
+                                      onClick={() => handleReviewAttempt(att.id)}
+                                    >
+                                      <Eye size={12} />
+                                      <span>Review Quiz</span>
+                                    </button>
+                                  );
+                                } else {
+                                  return (
+                                    <span 
+                                      style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.02)', padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--glass-border)', cursor: 'help' }}
+                                      title="For security, answer keys unlock exactly 1 hour after exam completion."
+                                    >
+                                      <Clock size={11} style={{ color: 'var(--accent-warning)' }} />
+                                      <span>Review Locked ({remainingMins}m)</span>
+                                    </span>
+                                  );
+                                }
+                              })()}
+
+                              {/* Certificate Download Link */}
                               {isPassed ? (
                                 <button
                                   className="glass-btn glass-btn-secondary"
@@ -271,7 +313,7 @@ export default function StudentDashboard() {
                                   onClick={() => handleDownloadCertificate(att.id)}
                                 >
                                   <Download size={12} />
-                                  <span>Download</span>
+                                  <span>Certificate</span>
                                 </button>
                               ) : (
                                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Locked (&lt;60%)</span>
@@ -309,60 +351,169 @@ export default function StudentDashboard() {
                       No attempts recorded for this quiz yet. Be the first to top the charts!
                     </div>
                   ) : (
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
-                          <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>RANK</th>
-                          <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>STUDENT</th>
-                          <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>SCORE</th>
-                          <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>TIME ELAPSED</th>
-                          <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>INTEGRITY STATUS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {leaderboards.map((lb, index) => {
-                          const isTopThree = index < 3;
-                          const rankColor = index === 0 ? '#EAB308' : index === 1 ? '#9CA3AF' : index === 2 ? '#B45309' : 'var(--text-muted)';
-                          return (
-                            <tr key={lb.userId} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isTopThree ? 'rgba(99, 102, 241, 0.02)' : 'none' }}>
-                              <td style={{ padding: '16px 12px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  {isTopThree ? (
-                                    <Trophy size={18} style={{ color: rankColor }} />
+                    <div>
+                      {/* 🏆 Olympic Glassmorphic Leaderboard Podium */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'flex-end',
+                        gap: '16px',
+                        margin: '20px auto 40px auto',
+                        maxWidth: '650px',
+                        padding: '24px 16px 16px 16px',
+                        background: 'rgba(255, 255, 255, 0.01)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '16px',
+                        position: 'relative'
+                      }}>
+                        {/* 2nd Place Podium Column (Left) */}
+                        {leaderboards[1] && (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '160px' }}>
+                            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                              <strong style={{ color: 'white', display: 'block', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                                {leaderboards[1].name}
+                              </strong>
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Score: {leaderboards[1].score.toFixed(1)}</span>
+                            </div>
+                            <div 
+                              className="glass-panel"
+                              style={{
+                                width: '100%',
+                                height: '90px',
+                                border: '2px solid rgba(156, 163, 175, 0.4)', // Silver
+                                boxShadow: '0 0 20px rgba(156, 163, 175, 0.1)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(156, 163, 175, 0.04)',
+                                position: 'relative'
+                              }}
+                            >
+                              <span style={{ fontSize: '28px', fontWeight: '800', color: 'rgba(156, 163, 175, 0.65)' }}>2</span>
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-secondary)', letterSpacing: '1px' }}>SILVER</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 1st Place Podium Column (Center Raised) */}
+                        {leaderboards[0] && (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '180px', transform: 'translateY(-14px)' }}>
+                            <div style={{ fontSize: '22px', animation: 'bounce 2s infinite', marginBottom: '2px', lineHeight: 1 }}>👑</div>
+                            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                              <strong style={{ color: 'white', display: 'block', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
+                                {leaderboards[0].name}
+                              </strong>
+                              <span style={{ fontSize: '12px', color: 'var(--accent-primary)', fontWeight: '800' }}>Score: {leaderboards[0].score.toFixed(1)}</span>
+                            </div>
+                            <div 
+                              className="glass-panel"
+                              style={{
+                                width: '100%',
+                                height: '130px',
+                                border: '2px solid rgba(234, 179, 8, 0.5)', // Gold
+                                boxShadow: '0 0 25px rgba(234, 179, 8, 0.15)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(234, 179, 8, 0.05)',
+                                position: 'relative'
+                              }}
+                            >
+                              <span style={{ fontSize: '38px', fontWeight: '800', color: 'rgba(234, 179, 8, 0.8)' }}>1</span>
+                              <span style={{ fontSize: '10px', fontWeight: '800', color: '#EAB308', letterSpacing: '1px' }}>CHAMPION</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3rd Place Podium Column (Right) */}
+                        {leaderboards[2] && (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, maxWidth: '160px' }}>
+                            <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+                              <strong style={{ color: 'white', display: 'block', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>
+                                {leaderboards[2].name}
+                              </strong>
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Score: {leaderboards[2].score.toFixed(1)}</span>
+                            </div>
+                            <div 
+                              className="glass-panel"
+                              style={{
+                                width: '100%',
+                                height: '70px',
+                                border: '2px solid rgba(180, 83, 9, 0.4)', // Bronze
+                                boxShadow: '0 0 15px rgba(180, 83, 9, 0.08)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                background: 'rgba(180, 83, 9, 0.04)',
+                                position: 'relative'
+                              }}
+                            >
+                              <span style={{ fontSize: '24px', fontWeight: '800', color: 'rgba(180, 83, 9, 0.6)' }}>3</span>
+                              <span style={{ fontSize: '9px', fontWeight: '800', color: 'var(--text-muted)', letterSpacing: '1px' }}>BRONZE</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Standard Rankings List Table */}
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid rgba(255,255,255,0.08)' }}>
+                            <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>RANK</th>
+                            <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>STUDENT</th>
+                            <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>SCORE</th>
+                            <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>TIME ELAPSED</th>
+                            <th style={{ padding: '12px', fontSize: '13px', color: 'var(--text-secondary)' }}>INTEGRITY STATUS</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leaderboards.map((lb, index) => {
+                            const isTopThree = index < 3;
+                            const rankColor = index === 0 ? '#EAB308' : index === 1 ? '#9CA3AF' : index === 2 ? '#B45309' : 'var(--text-muted)';
+                            return (
+                              <tr key={lb.userId} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: isTopThree ? 'rgba(99, 102, 241, 0.02)' : 'none' }}>
+                                <td style={{ padding: '16px 12px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {isTopThree ? (
+                                      <Trophy size={18} style={{ color: rankColor }} />
+                                    ) : (
+                                      <span style={{ fontSize: '14px', color: 'var(--text-muted)', width: '18px', display: 'inline-block', textAlign: 'center' }}>{index + 1}</span>
+                                    )}
+                                    <strong style={{ color: isTopThree ? 'white' : 'var(--text-secondary)' }}>#{index + 1}</strong>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '16px 12px', fontWeight: '600' }}>
+                                  <div>
+                                    <div>{lb.name}</div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '400' }}>{lb.email}</div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '16px 12px', fontWeight: '800', color: 'var(--accent-primary)', fontSize: '16px' }}>{lb.score.toFixed(1)}</td>
+                                <td style={{ padding: '16px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                  {Math.floor(lb.timeTakenSeconds / 60)}m {lb.timeTakenSeconds % 60}s
+                                </td>
+                                <td style={{ padding: '16px 12px' }}>
+                                  {lb.cheatingStrikes > 0 ? (
+                                    <span style={{ color: 'var(--accent-warning)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <AlertTriangle size={12} />
+                                      <span>{lb.cheatingStrikes} Strikes</span>
+                                    </span>
                                   ) : (
-                                    <span style={{ fontSize: '14px', color: 'var(--text-muted)', width: '18px', display: 'inline-block', textAlign: 'center' }}>{index + 1}</span>
+                                    <span style={{ color: 'var(--accent-success)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      <CheckCircle2 size={12} />
+                                      <span>Perfect Integrity</span>
+                                    </span>
                                   )}
-                                  <strong style={{ color: isTopThree ? 'white' : 'var(--text-secondary)' }}>#{index + 1}</strong>
-                                </div>
-                              </td>
-                              <td style={{ padding: '16px 12px', fontWeight: '600' }}>
-                                <div>
-                                  <div>{lb.name}</div>
-                                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '400' }}>{lb.email}</div>
-                                </div>
-                              </td>
-                              <td style={{ padding: '16px 12px', fontWeight: '800', color: 'var(--accent-primary)', fontSize: '16px' }}>{lb.score.toFixed(1)}</td>
-                              <td style={{ padding: '16px 12px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                {Math.floor(lb.timeTakenSeconds / 60)}m {lb.timeTakenSeconds % 60}s
-                              </td>
-                              <td style={{ padding: '16px 12px' }}>
-                                {lb.cheatingStrikes > 0 ? (
-                                  <span style={{ color: 'var(--accent-warning)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <AlertTriangle size={12} />
-                                    <span>{lb.cheatingStrikes} Strikes</span>
-                                  </span>
-                                ) : (
-                                  <span style={{ color: 'var(--accent-success)', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <CheckCircle2 size={12} />
-                                    <span>Perfect Integrity</span>
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>
@@ -370,6 +521,162 @@ export default function StudentDashboard() {
           </div>
         )}
       </main>
+
+      {/* 🛡️ INTERACTIVE STUDENT ANSWER REVIEW MODAL */}
+      {showReviewModal && selectedAttempt && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '24px'
+          }}
+        >
+          <div
+            className="glass-panel"
+            style={{
+              width: '100%',
+              maxWidth: '680px',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              padding: '32px',
+              position: 'relative'
+            }}
+          >
+            {/* Close Button */}
+            <button
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer'
+              }}
+              onClick={() => setShowReviewModal(false)}
+            >
+              <X size={24} />
+            </button>
+
+            {/* Modal Header */}
+            <div style={{ marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  background: 'rgba(99, 102, 241, 0.15)',
+                  color: 'var(--accent-primary)',
+                  marginBottom: '8px',
+                  display: 'inline-block'
+                }}
+              >
+                STUDENT EVALUATION SUMMARY
+              </span>
+              <h2 style={{ fontSize: '22px', fontWeight: '800', marginTop: '4px' }}>
+                {selectedAttempt.quiz.title}
+              </h2>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+                <div>Status: <strong style={{ color: 'var(--accent-primary)' }}>{selectedAttempt.status}</strong></div>
+                <div>Your Score: <strong style={{ color: 'white' }}>{selectedAttempt.score.toFixed(1)} / {selectedAttempt.quiz.totalMarks}</strong></div>
+                {selectedAttempt.cheatingStrikes > 0 && (
+                  <div style={{ color: 'var(--accent-danger)', fontWeight: '700' }}>Strikes Logged: {selectedAttempt.cheatingStrikes}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Answers List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {selectedAttempt.answers.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '20px' }}>
+                  No answers were captured for this attempt (unanswered exam submission).
+                </div>
+              ) : (
+                selectedAttempt.answers.map((ans, idx) => {
+                  const qText = ans.question.questionText;
+                  const studentChoice = ans.selectedOption;
+                  const correctChoice = ans.question.correctOption;
+                  const isCorrect = ans.isCorrect;
+
+                  return (
+                    <div
+                      key={ans.id}
+                      style={{
+                        padding: '16px',
+                        background: 'rgba(255,255,255,0.01)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '10px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-secondary)' }}>
+                          Question {idx + 1}
+                        </span>
+                        
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            background: isCorrect ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                            color: isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)'
+                          }}
+                        >
+                          {isCorrect ? 'Correct (+Marks)' : studentChoice === null ? 'Skipped' : 'Incorrect (Neg Deducted)'}
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', lineHeight: '1.4' }}>
+                        {qText}
+                      </p>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                        <div>
+                          <span style={{ color: 'var(--text-secondary)' }}>Your Selection: </span>
+                          <strong style={{ color: studentChoice ? (isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)') : 'var(--text-muted)' }}>
+                            {studentChoice ? `${studentChoice}: ${ans.question[`option${studentChoice}`]}` : '[Unanswered]'}
+                          </strong>
+                        </div>
+                        
+                        {!isCorrect && (
+                          <div>
+                            <span style={{ color: 'var(--text-secondary)' }}>Correct Answer Key: </span>
+                            <strong style={{ color: 'var(--accent-success)' }}>
+                              {correctChoice}: {ans.question[`option${correctChoice}`]}
+                            </strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ marginTop: '30px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                className="glass-btn glass-btn-secondary"
+                onClick={() => setShowReviewModal(false)}
+              >
+                Close Report
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

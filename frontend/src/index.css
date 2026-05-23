@@ -159,3 +159,57 @@ body {
   background-clip: text;
   animation: shimmer 5s linear infinite;
 }
+
+/* 🌓 Aurora Light Mode Theme Override */
+body.theme-aurora {
+  --bg-primary: #ecfdf5;
+  --bg-secondary: #f0fdf4;
+  --text-primary: #064e3b;
+  --text-secondary: #047857;
+  --text-muted: #10b981;
+  
+  --accent-primary: #059669; /* Mint Green */
+  --accent-secondary: #0284c7; /* Sky Blue */
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(16, 185, 129, 0.18);
+  --glass-shadow: rgba(4, 120, 87, 0.06);
+
+  color-scheme: light;
+}
+
+body.theme-aurora ::-webkit-scrollbar-track {
+  background: #ecfdf5;
+}
+
+body.theme-aurora ::-webkit-scrollbar-thumb {
+  background: rgba(4, 120, 87, 0.15);
+}
+
+body.theme-aurora ::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-primary);
+}
+
+body.theme-aurora .shimmer-text {
+  background: linear-gradient(90deg, #047857, #0284c7, #059669, #047857);
+  background-size: 200% auto;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: shimmer 5s linear infinite;
+}
+
+/* CSS Theme Transitions */
+body {
+  transition: background-color 0.4s ease, color 0.4s ease;
+}
+.glass-panel, .glass-input, .glass-btn {
+  transition: background 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
+}
+
+/* 🎥 Proctored Camera Sweep Scanline Keyframe */
+@keyframes scan {
+  0% { top: 0%; }
+  50% { top: 100%; }
+  100% { top: 0%; }
+}

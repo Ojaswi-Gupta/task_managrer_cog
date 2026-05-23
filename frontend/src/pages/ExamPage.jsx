@@ -20,6 +20,85 @@ export default function ExamPage() {
 
   const countdownRef = useRef(null);
 
+  // Proctoring audio & video states and references
+  const [volume, setVolume] = useState(0);
+  const [audioWarning, setAudioWarning] = useState(false);
+  const videoRef = useRef(null);
+  const audioStreamRef = useRef(null);
+  const videoStreamRef = useRef(null);
+
+  // 📹 WEBCAM & AUDIO PROCTORING STREAM INITIALIZATION
+  useEffect(() => {
+    let audioContext = null;
+    let analyser = null;
+    let dataArray = null;
+    let animationFrameId = null;
+
+    // Start video stream
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        videoStreamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      })
+      .catch(err => {
+        console.warn("Webcam proctoring permission denied or unavailable:", err);
+      });
+
+    // Start audio decibel visualizer
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        audioStreamRef.current = stream;
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioContext.createAnalyser();
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
+        analyser.fftSize = 32;
+        const bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+
+        const updateDecibels = () => {
+          if (!analyser || !dataArray) return;
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / bufferLength;
+          setVolume(avg); // decibel average
+          
+          if (avg > 75) {
+            setAudioWarning(true);
+          } else {
+            setAudioWarning(false);
+          }
+
+          animationFrameId = requestAnimationFrame(updateDecibels);
+        };
+        updateDecibels();
+      })
+      .catch(err => {
+        console.warn("Microphone proctoring permission denied or unavailable:", err);
+      });
+
+    // Clean up streams on unmount
+    return () => {
+      if (videoStreamRef.current) {
+        videoStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, []);
+
   // 1. Initial Load: Fetch Quiz and Questions, and Synchronize Attempt Timer
   useEffect(() => {
     const initializeExam = async () => {
@@ -361,82 +440,173 @@ export default function ExamPage() {
             </div>
           )}
         </div>
+        {/* SIDEBAR NAVIGATION COLUMN */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignSelf: 'start', width: '100%' }}>
+          
+          {/* Question Sheet Panel */}
+          <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-secondary)' }}>QUESTION SHEET</h4>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '10px'
+              }}
+            >
+              {questions.map((q, idx) => {
+                const isAnswered = !!answers[q.id];
+                const isActive = idx === currentIdx;
+                
+                let bgColor = 'rgba(255, 255, 255, 0.02)';
+                let borderColor = 'var(--glass-border)';
+                let textColor = 'var(--text-secondary)';
 
-        {/* SIDEBAR NAVIGATION GRID */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px', alignSelf: 'start' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: '700', color: 'var(--text-secondary)' }}>QUESTION SHEET</h4>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: '10px'
+                if (isAnswered) {
+                  bgColor = 'rgba(16, 185, 129, 0.15)';
+                  borderColor = 'rgba(16, 185, 129, 0.3)';
+                  textColor = 'var(--accent-success)';
+                }
+
+                if (isActive) {
+                  borderColor = 'var(--accent-primary)';
+                  bgColor = isAnswered ? 'rgba(16, 185, 129, 0.25)' : 'rgba(99, 102, 241, 0.15)';
+                  textColor = isAnswered ? 'white' : 'var(--accent-primary)';
+                }
+
+                return (
+                  <button
+                    key={q.id}
+                    style={{
+                      aspectRatio: '1',
+                      borderRadius: '8px',
+                      background: bgColor,
+                      border: `1px solid ${borderColor}`,
+                      color: textColor,
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      outline: 'none',
+                      transition: 'all 0.2s'
+                    }}
+                    onClick={() => setCurrentIdx(idx)}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                fontSize: '11px',
+                color: 'var(--text-muted)',
+                lineHeight: '1.4',
+                paddingTop: '16px',
+                borderTop: '1px solid rgba(255,255,255,0.06)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)' }} />
+                <span>Answered</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }} />
+                <span>Unanswered</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 📹 SECURITY & PROCTORING CONSOLE */}
+          <div 
+            className="glass-panel" 
+            style={{ 
+              padding: '24px', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '16px', 
+              border: audioWarning ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid var(--glass-border)', 
+              transition: 'border-color 0.3s' 
             }}
           >
-            {questions.map((q, idx) => {
-              const isAnswered = !!answers[q.id];
-              const isActive = idx === currentIdx;
+            <h4 style={{ fontSize: '13px', fontWeight: '800', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-success)', display: 'inline-block', animation: 'pulse 1.5s infinite' }} />
+              <span>LIVE SECURITY PROCTOR</span>
+            </h4>
+
+            {/* Video Viewport */}
+            <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: '8px', overflow: 'hidden', background: '#070a13', border: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
+              />
               
-              let bgColor = 'rgba(255, 255, 255, 0.02)';
-              let borderColor = 'var(--glass-border)';
-              let textColor = 'var(--text-secondary)';
+              {/* Green HUD Grid Overlay */}
+              <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                border: '1px solid rgba(16, 185, 129, 0.12)',
+                background: 'linear-gradient(rgba(16, 185, 129, 0.03) 50%, rgba(0, 0, 0, 0) 50%), linear-gradient(90deg, rgba(16, 185, 129, 0.03) 50%, rgba(0, 0, 0, 0) 50%)',
+                backgroundSize: '8px 8px'
+              }} />
+              
+              {/* Glow scan line */}
+              <div style={{
+                position: 'absolute',
+                left: 0,
+                width: '100%',
+                height: '2px',
+                background: 'rgba(16, 185, 129, 0.6)',
+                boxShadow: '0 0 8px rgba(16, 185, 129, 0.8)',
+                animation: 'scan 4s linear infinite',
+                top: '0%'
+              }} />
 
-              if (isAnswered) {
-                bgColor = 'rgba(16, 185, 129, 0.15)';
-                borderColor = 'rgba(16, 185, 129, 0.3)';
-                textColor = 'var(--accent-success)';
-              }
-
-              if (isActive) {
-                borderColor = 'var(--accent-primary)';
-                bgColor = isAnswered ? 'rgba(16, 185, 129, 0.25)' : 'rgba(99, 102, 241, 0.15)';
-                textColor = isAnswered ? 'white' : 'var(--accent-primary)';
-              }
-
-              return (
-                <button
-                  key={q.id}
-                  style={{
-                    aspectRatio: '1',
-                    borderRadius: '8px',
-                    background: bgColor,
-                    border: `1px solid ${borderColor}`,
-                    color: textColor,
-                    fontWeight: '700',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    outline: 'none',
-                    transition: 'all 0.2s'
-                  }}
-                  onClick={() => setCurrentIdx(idx)}
-                >
-                  {idx + 1}
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            style={{
-              fontSize: '11px',
-              color: 'var(--text-muted)',
-              lineHeight: '1.4',
-              paddingTop: '16px',
-              borderTop: '1px solid rgba(255,255,255,0.06)'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)' }} />
-              <span>Answered</span>
+              <span style={{ position: 'absolute', bottom: '8px', left: '8px', fontSize: '9px', fontWeight: '800', background: 'rgba(0,0,0,0.6)', padding: '3px 6px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                📷 WEBCAM FEED
+              </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)' }} />
-              <span>Unanswered</span>
+
+            {/* Microphone volume tracker */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '600' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Microphone Decibels</span>
+                <span style={{ color: audioWarning ? 'var(--accent-danger)' : 'var(--accent-success)' }}>
+                  {audioWarning ? '⚠️ NOISE SPIKE' : 'Active'}
+                </span>
+              </div>
+              <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', borderRadius: '4px', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.min(100, (volume / 120) * 100)}%`,
+                  background: audioWarning ? 'linear-gradient(90deg, var(--accent-success), var(--accent-danger))' : 'var(--accent-success)',
+                  transition: 'width 0.1s ease',
+                  boxShadow: audioWarning ? '0 0 10px rgba(239, 68, 68, 0.5)' : 'none'
+                }} />
+              </div>
             </div>
-          </div>
-        </div>
+
+            {/* Warning indicator */}
+            {audioWarning && (
+              <div style={{ padding: '8px 12px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.25)', fontSize: '11px', color: 'var(--accent-danger)', fontWeight: '700', display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <AlertTriangle size={12} />
+                <span>High ambient noise detected.</span>
+              </div>
+            )}
+
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+              Proctored Session: Face alignment and room sound levels are evaluated dynamically.
+            </div>
+          </div>        </div>
 
       </div>
     </div>

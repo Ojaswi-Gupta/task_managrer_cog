@@ -1,15 +1,16 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Points, PointMaterial } from '@react-three/drei';
+import { useAuth } from '../context/AuthContext';
 
-function StarField({ mouse }) {
+function StarField({ mouse, theme }) {
   const ref = useRef();
   
   // Generate random coordinates inside a sphere boundary
   const sphere = useMemo(() => {
     const arr = new Float32Array(600); // 200 points (x, y, z)
     for (let i = 0; i < arr.length; i += 3) {
-      // Coordinate randomizing in a sphere radius of 1.2
+      // Coordinate randomizing in a sphere radius of 1.5
       const u = Math.random();
       const v = Math.random();
       const theta = u * 2.0 * Math.PI;
@@ -43,11 +44,11 @@ function StarField({ mouse }) {
       <Points ref={ref} positions={sphere} stride={3} frustumCulled={false}>
         <PointMaterial
           transparent
-          color="#a855f7" // Purple accent
+          color={theme === 'aurora' ? '#0ea5e9' : '#a855f7'} // Sky-blue vs neon purple particles
           size={0.012}
           sizeAttenuation={true}
           depthWrite={false}
-          opacity={0.6}
+          opacity={theme === 'aurora' ? 0.75 : 0.6}
         />
       </Points>
     </group>
@@ -55,6 +56,7 @@ function StarField({ mouse }) {
 }
 
 export default function ThreeCanvas() {
+  const { theme } = useAuth();
   const mouse = useRef([0, 0]);
 
   useEffect(() => {
@@ -69,6 +71,11 @@ export default function ThreeCanvas() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
+  // Soft shifting background color based on theme
+  const bgStyle = theme === 'aurora'
+    ? 'radial-gradient(circle at 50% 50%, #f0fdf4 0%, #dbeafe 100%)' // Mint and soft sky blue
+    : 'radial-gradient(circle at 50% 50%, #111528 0%, #080a10 100%)'; // Midnight dark space
+
   return (
     <div
       style={{
@@ -79,12 +86,13 @@ export default function ThreeCanvas() {
         height: '100vh',
         zIndex: -1, // Sits under all standard HTML layers
         pointerEvents: 'none', // Allows click events to pass straight through
-        background: 'radial-gradient(circle at 50% 50%, #111528 0%, #080a10 100%)',
+        background: bgStyle,
+        transition: 'background 0.5s ease-in-out' // Smooth theme shift animation
       }}
     >
       <Canvas camera={{ position: [0, 0, 1] }}>
         <ambientLight opacity={0.5} />
-        <StarField mouse={mouse} />
+        <StarField mouse={mouse} theme={theme} />
       </Canvas>
     </div>
   );
