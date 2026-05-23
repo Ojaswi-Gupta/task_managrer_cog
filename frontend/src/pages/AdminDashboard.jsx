@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { BarChart2, Plus, Users, BookOpen, Activity, AlertTriangle, ShieldCheck, Trash2, LogOut, CheckCircle, HelpCircle, Eye, X, Calendar, ShieldAlert } from 'lucide-react';
+import { BarChart2, Plus, Users, BookOpen, Activity, AlertTriangle, ShieldCheck, Trash2, LogOut, CheckCircle, HelpCircle, Eye, X, Calendar, ShieldAlert, Download } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -63,6 +63,20 @@ export default function AdminDashboard() {
   const [totalMarks, setTotalMarks] = useState('10');
   const [negativeMarks, setNegativeMarks] = useState('0.25');
   const [isPublished, setIsPublished] = useState(false);
+  const [cohorts, setCohorts] = useState([]);
+  const [cohortId, setCohortId] = useState('');
+  const [opensAt, setOpensAt] = useState('');
+  const [closesAt, setClosesAt] = useState('');
+
+  // Section creation form state
+  const [newCohortName, setNewCohortName] = useState('');
+  const [newCohortSection, setNewCohortSection] = useState('');
+  
+  // Student registration form state
+  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentEmail, setNewStudentEmail] = useState('');
+  const [newStudentPassword, setNewStudentPassword] = useState('');
+  const [newStudentCohortId, setNewStudentCohortId] = useState('');
 
   // Question creation form state
   const [selectedQuizId, setSelectedQuizId] = useState('');
@@ -105,17 +119,22 @@ export default function AdminDashboard() {
   const fetchAdminData = async () => {
     try {
       setLoading(true);
-      const [statsRes, quizzesRes, attemptsRes] = await Promise.all([
+      const [statsRes, quizzesRes, attemptsRes, cohortsRes] = await Promise.all([
         axios.get(`${API_URL}/analytics/admin-stats`),
         axios.get(`${API_URL}/quizzes`),
-        axios.get(`${API_URL}/attempts`)
+        axios.get(`${API_URL}/attempts`),
+        axios.get(`${API_URL}/quizzes/cohorts`)
       ]);
       setStats(statsRes.data);
       setQuizzes(quizzesRes.data);
       setAttemptsList(attemptsRes.data);
+      setCohorts(cohortsRes.data);
 
       if (quizzesRes.data.length > 0 && !selectedQuizId) {
         setSelectedQuizId(quizzesRes.data[0].id.toString());
+      }
+      if (cohortsRes.data.length > 0 && !newStudentCohortId) {
+        setNewStudentCohortId(cohortsRes.data[0].id.toString());
       }
     } catch (err) {
       console.error('Failed to load admin analytics:', err);
@@ -147,7 +166,10 @@ export default function AdminDashboard() {
         duration: parseInt(duration),
         totalMarks: parseInt(totalMarks),
         negativeMarks: parseFloat(negativeMarks),
-        isPublished
+        isPublished,
+        cohortId: cohortId ? parseInt(cohortId) : null,
+        opensAt: opensAt || null,
+        closesAt: closesAt || null
       });
 
       alert('Quiz created successfully!');
@@ -157,11 +179,18 @@ export default function AdminDashboard() {
       setTotalMarks('10');
       setNegativeMarks('0.25');
       setIsPublished(false);
+      setCohortId(cohorts.length > 0 ? cohorts[0].id.toString() : '');
+      setOpensAt('');
+      setClosesAt('');
 
       fetchAdminData();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to create quiz');
     }
+  };
+
+  const handleExportCSV = (quizId) => {
+    window.open(`${API_URL}/quizzes/${quizId}/export?token=${localStorage.getItem('token')}`, '_blank');
   };
 
   const handleImageChange = (e) => {
@@ -266,6 +295,70 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCreateSection = async (e) => {
+    e.preventDefault();
+    if (!newCohortName || !newCohortSection) return;
+    try {
+      await axios.post(`${API_URL}/quizzes/cohorts`, {
+        name: newCohortName,
+        section: newCohortSection
+      });
+      alert('Classroom section created successfully!');
+      setNewCohortName('');
+      setNewCohortSection('');
+      fetchAdminData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to create section');
+    }
+  };
+
+  const handleRegisterStudent = async (e) => {
+    e.preventDefault();
+    if (!newStudentName || !newStudentEmail || !newStudentPassword || !newStudentCohortId) {
+      alert('All student fields are required.');
+      return;
+    }
+    try {
+      await axios.post(`${API_URL}/quizzes/cohorts/students`, {
+        name: newStudentName,
+        email: newStudentEmail,
+        password: newStudentPassword,
+        cohortId: newStudentCohortId
+      });
+      alert('Student registered successfully!');
+      setNewStudentName('');
+      setNewStudentEmail('');
+      setNewStudentPassword('');
+      fetchAdminData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to register student');
+    }
+  };
+
+  const handleDeleteCohort = async (cohortId) => {
+    const confirmDelete = window.confirm('Are you sure you want to delete this section? Linked students and quizzes will be unassigned but NOT deleted.');
+    if (!confirmDelete) return;
+    try {
+      await axios.delete(`${API_URL}/quizzes/cohorts/${cohortId}`);
+      alert('Classroom section deleted.');
+      fetchAdminData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete section');
+    }
+  };
+
+  const handleDeleteStudent = async (studentId) => {
+    const confirmDelete = window.confirm('Are you sure you want to permanently delete this student account? This will also purge their attempt logs.');
+    if (!confirmDelete) return;
+    try {
+      await axios.delete(`${API_URL}/quizzes/students/${studentId}`);
+      alert('Student deleted successfully.');
+      fetchAdminData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete student');
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', paddingBottom: '60px' }}>
       
@@ -317,6 +410,13 @@ export default function AdminDashboard() {
         >
           <HelpCircle size={16} />
           <span>Question Bank Manager</span>
+        </button>
+        <button
+          className={`glass-btn ${activeSubTab === 'sections' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
+          onClick={() => setActiveSubTab('sections')}
+        >
+          <Users size={16} />
+          <span>Classroom Sections & Students</span>
         </button>
       </div>
 
@@ -529,6 +629,42 @@ export default function AdminDashboard() {
                     <input type="number" step="0.05" min="0" className="glass-input" required value={negativeMarks} onChange={e => setNegativeMarks(e.target.value)} />
                   </div>
 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Cohort / Classroom</label>
+                    <select 
+                      className="glass-input" 
+                      value={cohortId} 
+                      onChange={e => setCohortId(e.target.value)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      <option value="">Unassigned (Open Access)</option>
+                      {cohorts.map(c => (
+                        <option key={c.id} value={c.id}>{c.name} - {c.section}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Opens At</label>
+                      <input 
+                        type="datetime-local" 
+                        className="glass-input" 
+                        value={opensAt} 
+                        onChange={e => setOpensAt(e.target.value)} 
+                      />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Closes At</label>
+                      <input 
+                        type="datetime-local" 
+                        className="glass-input" 
+                        value={closesAt} 
+                        onChange={e => setClosesAt(e.target.value)} 
+                      />
+                    </div>
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
                     <input type="checkbox" id="publish-chk" style={{ cursor: 'pointer' }} checked={isPublished} onChange={e => setIsPublished(e.target.checked)} />
                     <label htmlFor="publish-chk" style={{ fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>Publish Immediately</label>
@@ -559,7 +695,19 @@ export default function AdminDashboard() {
                       <tbody>
                         {quizzes.map((quiz) => (
                           <tr key={quiz.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                            <td style={{ padding: '16px 8px', fontWeight: '600' }}>{quiz.title}</td>
+                            <td style={{ padding: '16px 8px' }}>
+                              <div style={{ fontWeight: '600' }}>{quiz.title}</div>
+                              {quiz.cohort && (
+                                <div style={{ fontSize: '10px', color: 'var(--accent-primary)', marginTop: '2px' }}>
+                                  🎓 {quiz.cohort.name} ({quiz.cohort.section})
+                                </div>
+                              )}
+                              {quiz.opensAt && quiz.closesAt && (
+                                <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  📅 {new Date(quiz.opensAt).toLocaleDateString()} - {new Date(quiz.closesAt).toLocaleDateString()}
+                                </div>
+                              )}
+                            </td>
                             <td style={{ padding: '16px 8px', fontSize: '13px' }}>{quiz.duration} mins</td>
                             <td style={{ padding: '16px 8px', fontSize: '13px' }}>
                               {quiz.totalMarks} Marks {quiz.negativeMarks > 0 && <span style={{ color: 'var(--accent-warning)', fontSize: '11px' }}>(-{quiz.negativeMarks})</span>}
@@ -584,13 +732,23 @@ export default function AdminDashboard() {
                               </button>
                             </td>
                             <td style={{ padding: '16px 8px', textAlign: 'right' }}>
-                              <button
-                                className="glass-btn glass-btn-secondary"
-                                style={{ padding: '6px', borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.02)' }}
-                                onClick={() => handleDeleteQuiz(quiz.id)}
-                              >
-                                <Trash2 size={14} style={{ color: 'var(--accent-danger)' }} />
-                              </button>
+                              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <button
+                                  className="glass-btn glass-btn-secondary"
+                                  title="Export Gradebook CSV"
+                                  style={{ padding: '6px', borderColor: 'var(--accent-primary)', background: 'rgba(99, 102, 241, 0.02)' }}
+                                  onClick={() => handleExportCSV(quiz.id)}
+                                >
+                                  <Download size={14} style={{ color: 'var(--accent-primary)' }} />
+                                </button>
+                                <button
+                                  className="glass-btn glass-btn-secondary"
+                                  style={{ padding: '6px', borderColor: 'rgba(239, 68, 68, 0.3)', background: 'rgba(239, 68, 68, 0.02)' }}
+                                  onClick={() => handleDeleteQuiz(quiz.id)}
+                                >
+                                  <Trash2 size={14} style={{ color: 'var(--accent-danger)' }} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -842,6 +1000,224 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+
+            {/* 4. CLASSROOM SECTIONS & STUDENTS VIEW */}
+            {activeSubTab === 'sections' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.8fr', gap: '24px' }}>
+                
+                {/* Left Side: Create Section & Register Student Forms */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  
+                  {/* Form 1: Create Section */}
+                  <form className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleCreateSection}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Plus size={18} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Create Classroom Section</span>
+                    </h3>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Section / Class Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Computer Science" 
+                        className="glass-input" 
+                        required 
+                        value={newCohortName} 
+                        onChange={e => setNewCohortName(e.target.value)} 
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Section Code / Semester</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Section A" 
+                        className="glass-input" 
+                        required 
+                        value={newCohortSection} 
+                        onChange={e => setNewCohortSection(e.target.value)} 
+                      />
+                    </div>
+
+                    <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '4px' }}>
+                      <Plus size={16} />
+                      <span>Create Section</span>
+                    </button>
+                  </form>
+
+                  {/* Form 2: Register Student */}
+                  <form className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleRegisterStudent}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Users size={18} style={{ color: 'var(--accent-primary)' }} />
+                      <span>Register & Enroll Student</span>
+                    </h3>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Student Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="Alice Smith" 
+                        className="glass-input" 
+                        required 
+                        value={newStudentName} 
+                        onChange={e => setNewStudentName(e.target.value)} 
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Email Address</label>
+                      <input 
+                        type="email" 
+                        placeholder="alice@demo.com" 
+                        className="glass-input" 
+                        required 
+                        value={newStudentEmail} 
+                        onChange={e => setNewStudentEmail(e.target.value)} 
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Password</label>
+                      <input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        className="glass-input" 
+                        required 
+                        value={newStudentPassword} 
+                        onChange={e => setNewStudentPassword(e.target.value)} 
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Section</label>
+                      <select 
+                        className="glass-input" 
+                        required 
+                        value={newStudentCohortId} 
+                        onChange={e => setNewStudentCohortId(e.target.value)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <option value="" disabled>-- Select Section --</option>
+                        {cohorts.map(c => (
+                          <option key={c.id} value={c.id}>{c.name} - {c.section}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '4px' }}>
+                      <Plus size={16} />
+                      <span>Register Student</span>
+                    </button>
+                  </form>
+                </div>
+
+                {/* Right Side: Sections & Students Directory List */}
+                <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '800' }}>Classroom Sections Directory</h3>
+                  
+                  {cohorts.length === 0 ? (
+                    <div style={{ padding: '60px 40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                      No classroom sections defined. Create a section using the form to begin.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {cohorts.map((cohort) => {
+                        const studentCount = cohort.students ? cohort.students.length : 0;
+                        const quizCount = cohort.quizzes ? cohort.quizzes.length : 0;
+                        return (
+                          <div 
+                            key={cohort.id} 
+                            style={{ 
+                              border: '1px solid rgba(255, 255, 255, 0.06)', 
+                              borderRadius: '10px', 
+                              background: 'rgba(255, 255, 255, 0.01)',
+                              padding: '16px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '12px'
+                            }}
+                          >
+                            {/* Section Header */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div>
+                                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>
+                                  {cohort.name} - <span style={{ color: 'var(--accent-primary)' }}>{cohort.section}</span>
+                                </h4>
+                                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                  <span style={{ fontSize: '10px', background: 'rgba(99, 102, 241, 0.1)', color: 'var(--accent-primary)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                    🎓 {studentCount} Student{studentCount !== 1 && 's'}
+                                  </span>
+                                  <span style={{ fontSize: '10px', background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent-warning)', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                                    📝 {quizCount} Quiz{quizCount !== 1 && 'zes'}
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <button 
+                                className="glass-btn glass-btn-secondary"
+                                style={{ padding: '6px', borderColor: 'rgba(239, 68, 68, 0.25)', background: 'rgba(239, 68, 68, 0.02)' }}
+                                onClick={() => handleDeleteCohort(cohort.id)}
+                              >
+                                <Trash2 size={14} style={{ color: 'var(--accent-danger)' }} />
+                              </button>
+                            </div>
+
+                            {/* Enrolled Students Table/List */}
+                            <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', paddingTop: '10px' }}>
+                              <h5 style={{ margin: '0 0 8px 0', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '700' }}>
+                                ENROLLED STUDENTS LIST
+                              </h5>
+                              {!cohort.students || cohort.students.length === 0 ? (
+                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', padding: '4px 0' }}>
+                                  No students registered in this section yet.
+                                </div>
+                              ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                                      <th style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>NAME</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600' }}>EMAIL</th>
+                                      <th style={{ padding: '4px 8px', fontSize: '10px', color: 'var(--text-muted)', fontWeight: '600', textAlign: 'right' }}>ACTION</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {cohort.students.map((student) => (
+                                      <tr key={student.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                                        <td style={{ padding: '6px 8px', fontSize: '12px', fontWeight: '600' }}>{student.name}</td>
+                                        <td style={{ padding: '6px 8px', fontSize: '12px', color: 'var(--text-secondary)' }}>{student.email}</td>
+                                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                                          <button
+                                            style={{
+                                              background: 'none',
+                                              border: 'none',
+                                              cursor: 'pointer',
+                                              padding: '4px',
+                                              color: 'var(--accent-danger)',
+                                              opacity: 0.7
+                                            }}
+                                            title="Delete student account"
+                                            onClick={() => handleDeleteStudent(student.id)}
+                                            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+                                            onMouseLeave={e => e.currentTarget.style.opacity = 0.7}
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const prisma = require('../prisma');
 
 const register = async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, password, role, cohortId } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'All fields (name, email, password) are required' });
@@ -32,13 +32,14 @@ const register = async (req, res) => {
         name,
         email,
         password: hashedPassword,
-        role: userRole
+        role: userRole,
+        cohortId: cohortId ? parseInt(cohortId) : null
       }
     });
 
     // Create JWT token
     const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role },
+      { id: user.id, name: user.name, email: user.email, role: user.role, cohortId: user.cohortId },
       process.env.JWT_SECRET || 'super-secret-quiz-portal-token-key-change-in-prod',
       { expiresIn: '24h' }
     );
@@ -84,7 +85,7 @@ const login = async (req, res) => {
 
     // Create JWT token
     const token = jwt.sign(
-      { id: user.id, name: user.name, email: user.email, role: user.role },
+      { id: user.id, name: user.name, email: user.email, role: user.role, cohortId: user.cohortId },
       process.env.JWT_SECRET || 'super-secret-quiz-portal-token-key-change-in-prod',
       { expiresIn: '24h' }
     );
@@ -105,7 +106,25 @@ const login = async (req, res) => {
   }
 };
 
+const getPublicCohorts = async (req, res) => {
+  try {
+    const cohorts = await prisma.cohort.findMany({
+      select: {
+        id: true,
+        name: true,
+        section: true
+      },
+      orderBy: { name: 'asc' }
+    });
+    res.status(200).json(cohorts);
+  } catch (err) {
+    console.error('Get public cohorts error:', err);
+    res.status(500).json({ error: 'Failed to retrieve available sections' });
+  }
+};
+
 module.exports = {
   register,
-  login
+  login,
+  getPublicCohorts
 };

@@ -13,6 +13,8 @@ model User {
   email     String   @unique
   password  String
   role      String   @default("STUDENT") // "STUDENT" | "ADMIN"
+  cohortId  Int?
+  cohort    Cohort?  @relation(fields: [cohortId], references: [id], onDelete: SetNull)
   attempts  Attempt[]
   createdAt DateTime @default(now())
 }
@@ -25,9 +27,22 @@ model Quiz {
   totalMarks    Int
   negativeMarks Float      @default(0.0)
   isPublished   Boolean    @default(false)
+  cohortId      Int?
+  cohort        Cohort?    @relation(fields: [cohortId], references: [id], onDelete: SetNull)
+  opensAt       DateTime?
+  closesAt      DateTime?
   questions     Question[]
   attempts      Attempt[]
   createdAt     DateTime   @default(now())
+}
+
+model Cohort {
+  id        Int      @id @default(autoincrement())
+  name      String
+  section   String
+  students  User[]
+  quizzes   Quiz[]
+  createdAt DateTime @default(now())
 }
 
 model Question {

@@ -18,6 +18,33 @@ const startAttempt = async (req, res) => {
       return res.status(404).json({ error: 'Quiz not found or not published' });
     }
 
+    // 1. Enforce Cohort Access Rule
+    if (req.user.role === 'STUDENT' && quiz.cohortId !== req.user.cohortId) {
+      return res.status(403).json({ error: 'Access denied: You are not enrolled in the cohort assigned to this quiz' });
+    }
+
+    // 2. Enforce Scheduled Date Windows
+    const now = new Date();
+    if (quiz.opensAt && now < new Date(quiz.opensAt)) {
+      return res.status(400).json({ error: `This assessment is scheduled to open at ${new Date(quiz.opensAt).toLocaleString()}` });
+    }
+    if (quiz.closesAt && now > new Date(quiz.closesAt)) {
+      return res.status(400).json({ error: 'This assessment is closed and no longer accepting attempts.' });
+    }
+
+    // 3. Enforce Attempt Locks (Single attempt policy)
+    const pastCompletedAttempt = await prisma.attempt.findFirst({
+      where: {
+        userId,
+        quizId: parseInt(quizId),
+        status: { in: ['COMPLETED', 'FORCE_SUBMITTED'] }
+      }
+    });
+
+    if (pastCompletedAttempt) {
+      return res.status(400).json({ error: 'You have already submitted an attempt for this assessment. Multiple attempts are not permitted.' });
+    }
+
     // Check if an attempt is already IN_PROGRESS for this user and quiz (Resilience!)
     const activeAttempt = await prisma.attempt.findFirst({
       where: {

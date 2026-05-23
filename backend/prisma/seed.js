@@ -12,19 +12,48 @@ async function main() {
   await prisma.question.deleteMany({});
   await prisma.quiz.deleteMany({});
   await prisma.user.deleteMany({});
+  await prisma.cohort.deleteMany({});
 
   // 2. Create encrypted passwords
   const salt = await bcrypt.genSalt(10);
   const studentPassword = await bcrypt.hash('student123', salt);
   const adminPassword = await bcrypt.hash('admin123', salt);
 
-  // 3. Create mock Users
+  // 3. Create Batch/Cohorts
+  const cohortA = await prisma.cohort.create({
+    data: {
+      name: 'Computer Science',
+      section: 'Section A'
+    }
+  });
+
+  const cohortB = await prisma.cohort.create({
+    data: {
+      name: 'Electrical Engineering',
+      section: 'Section B'
+    }
+  });
+
+  console.log(`Created cohorts:\n- A: ${cohortA.name} (${cohortA.section})\n- B: ${cohortB.name} (${cohortB.section})`);
+
+  // 4. Create mock Users
   const student = await prisma.user.create({
     data: {
       name: 'John Student',
       email: 'student@quizportal.com',
       password: studentPassword,
-      role: 'STUDENT'
+      role: 'STUDENT',
+      cohortId: cohortA.id
+    }
+  });
+
+  const studentB = await prisma.user.create({
+    data: {
+      name: 'Bob Student',
+      email: 'student_b@quizportal.com',
+      password: studentPassword,
+      role: 'STUDENT',
+      cohortId: cohortB.id
     }
   });
 
@@ -37,9 +66,9 @@ async function main() {
     }
   });
 
-  console.log(`Created users:\n- Student: ${student.email}\n- Admin: ${admin.email}`);
+  console.log(`Created users:\n- Student A: ${student.email}\n- Student B: ${studentB.email}\n- Admin: ${admin.email}`);
 
-  // 4. Create Quiz 1: Java & Web Tech
+  // 5. Create Quiz 1: JavaScript Essentials (Assigned to Section A)
   const quiz1 = await prisma.quiz.create({
     data: {
       title: 'JavaScript Essentials Test',
@@ -47,7 +76,10 @@ async function main() {
       duration: 5, // 5 minutes
       totalMarks: 3,
       negativeMarks: 0.25,
-      isPublished: true
+      isPublished: true,
+      cohortId: cohortA.id,
+      opensAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+      closesAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) // 7 days from now
     }
   });
 
@@ -90,7 +122,7 @@ async function main() {
     }
   });
 
-  // 5. Create Quiz 2: React & 3D WebGL
+  // 6. Create Quiz 2: React & 3D WebGL (Assigned to Section B)
   const quiz2 = await prisma.quiz.create({
     data: {
       title: 'React & 3D WebGL Basics',
@@ -98,7 +130,10 @@ async function main() {
       duration: 10, // 10 minutes
       totalMarks: 3,
       negativeMarks: 0.5,
-      isPublished: true
+      isPublished: true,
+      cohortId: cohortB.id,
+      opensAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
+      closesAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7) // 7 days from now
     }
   });
 
@@ -141,7 +176,7 @@ async function main() {
     }
   });
 
-  // 6. Create a mock completed Attempt for Quiz 1
+  // 7. Create a mock completed Attempt for Student A on Quiz 1
   const attempt = await prisma.attempt.create({
     data: {
       userId: student.id,

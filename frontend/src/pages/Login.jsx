@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, User, ShieldAlert } from 'lucide-react';
+import axios from 'axios';
+import { Lock, Mail, User, ShieldAlert, BookOpen } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 export default function Login() {
   const { login, register } = useAuth();
@@ -14,6 +17,23 @@ export default function Login() {
   const [isAdmin, setIsAdmin] = useState(false); // Quick toggle helper for resume presentation
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [cohorts, setCohorts] = useState([]);
+  const [cohortId, setCohortId] = useState('');
+
+  useEffect(() => {
+    if (isRegister && !isAdmin) {
+      axios.get(`${API_URL}/auth/cohorts`)
+        .then(res => {
+          setCohorts(res.data);
+          if (res.data.length > 0) {
+            setCohortId(res.data[0].id.toString());
+          }
+        })
+        .catch(err => {
+          console.error("Failed to load classroom sections for signup:", err);
+        });
+    }
+  }, [isRegister, isAdmin]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,7 +42,13 @@ export default function Login() {
 
     try {
       if (isRegister) {
-        const payload = await register(name, email, password, isAdmin ? 'ADMIN' : 'STUDENT');
+        const payload = await register(
+          name, 
+          email, 
+          password, 
+          isAdmin ? 'ADMIN' : 'STUDENT', 
+          !isAdmin ? cohortId : null
+        );
         navigate(payload.user.role === 'ADMIN' ? '/admin' : '/');
       } else {
         const payload = await login(email, password);
@@ -125,6 +151,29 @@ export default function Login() {
               />
             </div>
           </div>
+
+          {isRegister && !isAdmin && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Assign Classroom Section</label>
+              <div style={{ position: 'relative' }}>
+                <BookOpen size={16} style={{ position: 'absolute', left: '12px', top: '15px', color: 'var(--text-muted)' }} />
+                <select
+                  required
+                  className="glass-input"
+                  style={{ paddingLeft: '38px', cursor: 'pointer' }}
+                  value={cohortId}
+                  onChange={(e) => setCohortId(e.target.value)}
+                >
+                  <option value="" disabled>-- Select Your Section --</option>
+                  {cohorts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} - {c.section}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
           {isRegister && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>

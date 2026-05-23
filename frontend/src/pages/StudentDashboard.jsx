@@ -102,9 +102,16 @@ export default function StudentDashboard() {
           <h1 style={{ fontSize: '24px', fontWeight: '800' }}>
             <span className="shimmer-text">QuizPortal Hub</span>
           </h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Welcome back, <strong style={{ color: 'white' }}>{user?.name}</strong> (Student Evaluation Console)
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>
+              Welcome back, <strong style={{ color: 'white' }}>{user?.name}</strong> (Student Evaluation Console)
+            </p>
+            {quizzes.length > 0 && quizzes[0].cohort && (
+              <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--accent-primary)', background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '2px 8px', borderRadius: '12px' }}>
+                🎓 {quizzes[0].cohort.name} - {quizzes[0].cohort.section}
+              </span>
+            )}
+          </div>
         </div>
         <button className="glass-btn glass-btn-secondary" style={{ padding: '8px 16px' }} onClick={logout}>
           <LogOut size={16} />
@@ -157,56 +164,92 @@ export default function StudentDashboard() {
                       gap: '24px'
                     }}
                   >
-                    {quizzes.map((quiz) => (
-                      <div key={quiz.id} className="glass-panel glass-panel-hover" style={{ padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                            <h3 style={{ fontSize: '18px', fontWeight: '700' }}>{quiz.title}</h3>
-                          </div>
-                          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
-                            {quiz.description || 'No description provided.'}
-                          </p>
-                        </div>
-                        
-                        <div>
-                          <div
-                            style={{
-                              display: 'flex',
-                              gap: '16px',
-                              fontSize: '12px',
-                              color: 'var(--text-secondary)',
-                              paddingTop: '16px',
-                              borderTop: '1px solid rgba(255,255,255,0.06)',
-                              marginBottom: '20px'
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Clock size={14} style={{ color: 'var(--accent-primary)' }} />
-                              <span>{quiz.duration} mins</span>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Award size={14} style={{ color: 'var(--accent-secondary)' }} />
-                              <span>{quiz.totalMarks} Marks</span>
-                            </div>
-                            {quiz.negativeMarks > 0 && (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-warning)' }}>
-                                <AlertTriangle size={14} />
-                                <span>-{quiz.negativeMarks} Neg</span>
+                    {quizzes.map((quiz) => {
+                      const now = new Date();
+                      const openDate = quiz.opensAt ? new Date(quiz.opensAt) : null;
+                      const closeDate = quiz.closesAt ? new Date(quiz.closesAt) : null;
+                      const isNotOpenYet = openDate && now < openDate;
+                      const isClosed = closeDate && now > closeDate;
+                      const isLocked = isNotOpenYet || isClosed;
+
+                      let buttonText = "Start Evaluation";
+                      if (isNotOpenYet) {
+                        buttonText = "Locked (Not Started)";
+                      } else if (isClosed) {
+                        buttonText = "Locked (Ended)";
+                      }
+
+                      return (
+                        <div key={quiz.id} className="glass-panel glass-panel-hover" style={{ padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', opacity: isLocked ? 0.75 : 1 }}>
+                          <div>
+                            {quiz.cohort && (
+                              <div style={{ fontSize: '9px', fontWeight: '800', color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px', display: 'inline-block', background: 'rgba(99,102,241,0.08)', padding: '3px 6px', borderRadius: '4px' }}>
+                                🎯 {quiz.cohort.name} ({quiz.cohort.section})
                               </div>
                             )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                              <h3 style={{ fontSize: '18px', fontWeight: '700' }}>{quiz.title}</h3>
+                            </div>
+                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: '1.5' }}>
+                              {quiz.description || 'No description provided.'}
+                            </p>
                           </div>
+                          
+                          <div>
+                            {quiz.opensAt && quiz.closesAt && (
+                              <div style={{ fontSize: '11px', color: isLocked ? 'var(--accent-warning)' : 'var(--accent-success)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '12px', background: 'rgba(255,255,255,0.02)', padding: '6px 10px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                                <Calendar size={12} />
+                                <span>
+                                  {isNotOpenYet 
+                                    ? `Opens: ${openDate.toLocaleDateString()} ${openDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                    : isClosed 
+                                      ? `Ended: ${closeDate.toLocaleDateString()}`
+                                      : `Open Until: ${closeDate.toLocaleDateString()} ${closeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                  }
+                                </span>
+                              </div>
+                            )}
 
-                          <button
-                            className="glass-btn glass-btn-primary"
-                            style={{ width: '100%' }}
-                            onClick={() => handleStartExam(quiz.id)}
-                          >
-                            <span>Start Evaluation</span>
-                            <ChevronRight size={16} />
-                          </button>
+                            <div
+                              style={{
+                                display: 'flex',
+                                gap: '16px',
+                                fontSize: '12px',
+                                color: 'var(--text-secondary)',
+                                paddingTop: '16px',
+                                borderTop: '1px solid rgba(255,255,255,0.06)',
+                                marginBottom: '20px'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Clock size={14} style={{ color: 'var(--accent-primary)' }} />
+                                <span>{quiz.duration} mins</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Award size={14} style={{ color: 'var(--accent-secondary)' }} />
+                                <span>{quiz.totalMarks} Marks</span>
+                              </div>
+                              {quiz.negativeMarks > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-warning)' }}>
+                                  <AlertTriangle size={14} />
+                                  <span>-{quiz.negativeMarks} Neg</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <button
+                              className="glass-btn glass-btn-primary"
+                              disabled={isLocked}
+                              style={{ width: '100%', background: isLocked ? 'rgba(255,255,255,0.02)' : undefined, borderColor: isLocked ? 'rgba(255,255,255,0.04)' : undefined, color: isLocked ? 'var(--text-muted)' : undefined, cursor: isLocked ? 'not-allowed' : 'pointer' }}
+                              onClick={() => handleStartExam(quiz.id)}
+                            >
+                              <span>{buttonText}</span>
+                              {!isLocked && <ChevronRight size={16} />}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
