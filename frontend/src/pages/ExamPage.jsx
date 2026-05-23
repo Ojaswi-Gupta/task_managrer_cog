@@ -25,6 +25,9 @@ export default function ExamPage() {
   const [fullscreenBreached, setFullscreenBreached] = useState(false);
   const [fullscreenTimer, setFullscreenTimer] = useState(5);
 
+  // QR Device Pairing states
+  const [isMobileCamPaired, setIsMobileCamPaired] = useState(false);
+
   const countdownRef = useRef(null);
 
   // Proctoring audio & video states and references
@@ -125,6 +128,8 @@ export default function ExamPage() {
     };
   }, [isCalibrated]);
 
+
+
   // 1. Initial Load: Fetch Quiz and Questions, and Synchronize Attempt Timer
   useEffect(() => {
     const initializeExam = async () => {
@@ -143,8 +148,8 @@ export default function ExamPage() {
         setQuiz(attempt.quiz);
         setCheatingStrikes(attempt.cheatingStrikes);
 
-        // Fetch student-facing questions (EXCLUDES correctOption)
-        const qRes = await axios.get(`${API_URL}/quizzes/${attempt.quizId}/exam-questions`);
+        // Fetch student-facing questions (EXCLUDES correctOption) with attemptId seed for dynamic shuffling
+        const qRes = await axios.get(`${API_URL}/quizzes/${attempt.quizId}/exam-questions?attemptId=${attemptId}`);
         setQuestions(qRes.data);
 
         // Synchronize remaining time
@@ -202,7 +207,7 @@ export default function ExamPage() {
       setFullscreenTimer(prev => {
         if (prev <= 1) {
           clearInterval(timer);
-          setCheatingStrikes(3);
+          setCheatingStrikes(5);
           setIsDisqualified(true);
           handleBrutalSubmit();
           return 0;
@@ -258,12 +263,12 @@ export default function ExamPage() {
   useEffect(() => {
     if (cheatingStrikes === 0 || loading || submitting) return;
 
-    if (cheatingStrikes >= 3) {
+    if (cheatingStrikes >= 5) {
       stopMediaStreams();
       setIsDisqualified(true);
       handleBrutalSubmit();
     } else {
-      setProctorWarning(`⚠️ INTEGRITY WARNING: Focus loss, fullscreen exit, or tab switch detected! Strike ${cheatingStrikes}/3 registered. (Auto-submits on Strike 3)`);
+      setProctorWarning(`⚠️ INTEGRITY WARNING: Focus loss, fullscreen exit, or tab switch detected! Strike ${cheatingStrikes}/5 registered. (Auto-submits on Strike 5)`);
     }
   }, [cheatingStrikes]);
 
@@ -606,14 +611,6 @@ export default function ExamPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', color: 'var(--text-secondary)' }}>
-        Loading secure exam session...
-      </div>
-    );
-  }
-
   if (!isCalibrated) {
     return (
       <div style={{
@@ -625,57 +622,152 @@ export default function ExamPage() {
         padding: '24px',
         color: 'white'
       }}>
-        <div className="glass-panel" style={{ maxWidth: '500px', padding: '40px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--glass-border)', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', borderRadius: '16px' }}>
-          <h2 style={{ fontSize: '24px', fontWeight: '800', margin: 0 }}>
-            <span className="shimmer-text">Secure Assessment Portal</span>
-          </h2>
+        <div className="glass-panel" style={{ width: '100%', maxWidth: '860px', padding: '40px', display: 'flex', flexDirection: 'column', gap: '32px', border: '1px solid var(--glass-border)', boxShadow: '0 25px 50px rgba(0,0,0,0.5)', borderRadius: '16px' }}>
           
-          <p style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-secondary)', margin: 0 }}>
-            Before launching the assessment, the AI proctor must lock the screen into **Fullscreen Mode** and calibrate your camera/microphone.
-          </p>
-
-          <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', textAlign: 'left', fontSize: '12px', color: 'var(--accent-danger)' }}>
-            <strong>⚠️ ANTI-CHEAT COMPLIANCE REQUIRED:</strong>
-            <ul style={{ margin: '8px 0 0 16px', padding: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <li>Leaving Fullscreen mode counts as an Integrity Strike.</li>
-              <li>Switching tabs or clicking outside this window counts as an Integrity Strike.</li>
-              <li>A maximum of 2 strikes is allowed; the 3rd strike triggers automatic submission.</li>
-            </ul>
+          <div style={{ textAlign: 'center' }}>
+            <h2 style={{ fontSize: '26px', fontWeight: '800', margin: 0 }}>
+              <span className="shimmer-text">Secure Assessment Dual-Device Calibration</span>
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '8px', margin: 0 }}>
+              AI Proctoring V3 active. Calibrate your primary and secondary proctor feeds.
+            </p>
           </div>
 
-          <button
-            className="glass-btn glass-btn-primary"
-            style={{
-              padding: '12px 24px',
-              fontSize: '15px',
-              fontWeight: '700',
-              background: 'linear-gradient(135deg, var(--accent-primary), #4f46e5)',
-              boxShadow: '0 8px 24px rgba(99, 102, 241, 0.25)',
-              cursor: 'pointer'
-            }}
-            onClick={async () => {
-              try {
-                const docEl = document.documentElement;
-                if (docEl.requestFullscreen) {
-                  await docEl.requestFullscreen();
-                } else if (docEl.webkitRequestFullscreen) {
-                  await docEl.webkitRequestFullscreen();
-                } else if (docEl.mozRequestFullScreen) {
-                  await docEl.mozRequestFullScreen();
-                } else if (docEl.msRequestFullscreen) {
-                  await docEl.msRequestFullscreen();
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '32px', alignItems: 'start' }}>
+            
+            {/* Left Side: Policy & Consent */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: 'var(--accent-primary)' }}>1. Primary Proctor Compliance</h3>
+              <p style={{ fontSize: '13px', lineHeight: '1.6', color: 'var(--text-secondary)', margin: 0 }}>
+                You must grant access to your webcam and microphone. The secure AI environment will lock your browser into **Fullscreen Mode** immediately upon launch.
+              </p>
+
+              <div style={{ padding: '16px', borderRadius: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '12px', color: 'var(--accent-danger)' }}>
+                <strong>⚠️ ANTI-CHEAT COMPLIANCE RULES:</strong>
+                <ul style={{ margin: '8px 0 0 16px', padding: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <li>Exiting Fullscreen mode registers a cheating strike.</li>
+                  <li>Tab switching or window defocus registers a cheating strike.</li>
+                  <li>Max 4 strikes. The 5th strike automatically submits your sheet.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Right Side: QR Pairing */}
+            <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.01)', textAlign: 'center' }}>
+              <h3 style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: 'var(--text-primary)' }}>2. Pair Secondary Desk Camera</h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
+                Scan this dynamic WebRTC QR code with your mobile phone to stream your side desk/hand environment.
+              </p>
+
+              {/* Glowing SVG QR Code */}
+              <div style={{ position: 'relative', display: 'inline-block', margin: '8px auto' }}>
+                <svg width="128" height="128" viewBox="0 0 29 29" style={{ display: 'block', background: 'white', padding: '8px', borderRadius: '8px', boxShadow: '0 0 20px rgba(99,102,241,0.3)' }}>
+                  <path d="M0 0h7v7H0zm1 1v5h5V1zM2 2v3h3V2zm22-2h7v7h-7zm1 1v5h5V1zm1 1v3h3V2zM0 22h7v7H0zm1 1v5h5v-5zm1 1v3h3v-3zm18 0h3v3h-3zm-2-2h2v2h-2zm4 4h3v3h-3zm-10-8h2v2h-2zm4 0h2v2h-2zm-6 2h2v2h-2zm12 0h2v2h-2zm-8 4h2v2h-2zm4 0h2v2h-2z" fill="#0f172a" />
+                  <rect x="9" y="0" width="2" height="2" fill="#0f172a" />
+                  <rect x="9" y="3" width="3" height="1" fill="#0f172a" />
+                  <rect x="14" y="1" width="1" height="3" fill="#0f172a" />
+                  <rect x="18" y="2" width="2" height="2" fill="#0f172a" />
+                  <rect x="9" y="6" width="2" height="2" fill="#0f172a" />
+                  <rect x="15" y="5" width="3" height="2" fill="#0f172a" />
+                  <rect x="2" y="9" width="3" height="3" fill="#0f172a" />
+                  <rect x="6" y="11" width="4" height="2" fill="#0f172a" />
+                  <rect x="11" y="9" width="2" height="4" fill="#0f172a" />
+                  <rect x="15" y="9" width="5" height="2" fill="#0f172a" />
+                  <rect x="22" y="9" width="3" height="3" fill="#0f172a" />
+                </svg>
+                {isMobileCamPaired && (
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    background: 'rgba(15,23,42,0.85)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    border: '2px solid var(--accent-success)',
+                    boxShadow: '0 0 16px var(--accent-success)'
+                  }}>
+                    <CheckCircle2 size={32} style={{ color: 'var(--accent-success)' }} />
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'white' }}>SEC_CAM LINKED</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Status indicator */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '12px' }}>
+                <span style={{ 
+                  width: '8px', 
+                  height: '8px', 
+                  borderRadius: '50%', 
+                  background: isMobileCamPaired ? 'var(--accent-success)' : 'var(--accent-danger)', 
+                  boxShadow: `0 0 8px ${isMobileCamPaired ? 'var(--accent-success)' : 'var(--accent-danger)'}`,
+                  display: 'inline-block' 
+                }} />
+                <span style={{ fontWeight: '600', color: isMobileCamPaired ? 'var(--accent-success)' : 'var(--text-secondary)' }}>
+                  {isMobileCamPaired ? 'SECONDARY MOBILE FEED: PAIRED' : 'SECONDARY MOBILE FEED: DISCONNECTED'}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                className="glass-btn"
+                style={{ padding: '6px 12px', fontSize: '11px', alignSelf: 'center', borderColor: isMobileCamPaired ? 'rgba(239, 68, 68, 0.3)' : 'var(--accent-primary)' }}
+                onClick={() => setIsMobileCamPaired(!isMobileCamPaired)}
+              >
+                {isMobileCamPaired ? 'Simulate Disconnect' : 'Simulate Scanning / Pairing'}
+              </button>
+            </div>
+
+          </div>
+
+          {/* Launch Button Footer */}
+          <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+            <button
+              className="glass-btn glass-btn-primary"
+              disabled={!isMobileCamPaired}
+              style={{
+                padding: '14px 40px',
+                fontSize: '15px',
+                fontWeight: '800',
+                background: isMobileCamPaired 
+                  ? 'linear-gradient(135deg, var(--accent-primary), #4f46e5)' 
+                  : 'rgba(255,255,255,0.03)',
+                borderColor: isMobileCamPaired ? 'var(--accent-primary)' : 'rgba(255,255,255,0.06)',
+                color: isMobileCamPaired ? 'white' : 'var(--text-muted)',
+                boxShadow: isMobileCamPaired ? '0 8px 24px rgba(99, 102, 241, 0.25)' : 'none',
+                cursor: isMobileCamPaired ? 'pointer' : 'not-allowed',
+                transition: 'all 0.3s'
+              }}
+              onClick={async () => {
+                try {
+                  const docEl = document.documentElement;
+                  if (docEl.requestFullscreen) {
+                    await docEl.requestFullscreen();
+                  } else if (docEl.webkitRequestFullscreen) {
+                    await docEl.webkitRequestFullscreen();
+                  } else if (docEl.mozRequestFullScreen) {
+                    await docEl.mozRequestFullScreen();
+                  } else if (docEl.msRequestFullscreen) {
+                    await docEl.msRequestFullscreen();
+                  }
+                } catch (err) {
+                  console.warn("Fullscreen permission denied or unsupported:", err);
                 }
-              } catch (err) {
-                console.warn("Fullscreen permission denied or unsupported:", err);
-              }
-              setIsCalibrated(true);
-            }}
-          >
-            Launch Assessment & Fullscreen
-          </button>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '-8px' }}>
-            🛡️ Proctor V2 Active (Strict Fullscreen Exit Hook)
+                setIsCalibrated(true);
+              }}
+            >
+              {isMobileCamPaired ? '🔐 Enter Secure Fullscreen & Begin Assessment' : '🔒 Pair Phone as Desk Camera to Unlock Assessment'}
+            </button>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              🛡️ Proctor AI V3.2 Active (Desktop Fullscreen Safeguards + Desk-Environment Sensor)
+            </div>
           </div>
+
         </div>
       </div>
     );
@@ -761,7 +853,7 @@ export default function ExamPage() {
               }}
             >
               <ShieldAlert size={16} />
-              <span>{cheatingStrikes} / 3 Strikes</span>
+              <span>{cheatingStrikes} / 5 Strikes</span>
             </div>
           )}
 
@@ -874,6 +966,29 @@ export default function ExamPage() {
               <h3 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '28px', lineHeight: '1.4' }}>
                 {currentQuestion.questionText}
               </h3>
+
+              {currentQuestion.questionImage && (
+                <div style={{ 
+                  margin: '16px 0 28px 0', 
+                  width: '100%', 
+                  maxWidth: '520px', 
+                  borderRadius: '10px', 
+                  overflow: 'hidden', 
+                  border: '1px solid var(--glass-border)', 
+                  boxShadow: '0 8px 32px 0 rgba(0,0,0,0.2)' 
+                }}>
+                  <img 
+                    src={currentQuestion.questionImage} 
+                    alt="Assessment Diagram" 
+                    style={{ 
+                      width: '100%', 
+                      objectFit: 'contain', 
+                      maxHeight: '320px',
+                      display: 'block'
+                    }} 
+                  />
+                </div>
+              )}
 
               {/* Options mapping */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '32px' }}>
@@ -1072,36 +1187,61 @@ export default function ExamPage() {
                 muted
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
               />
-              
-              {/* Green HUD Grid Overlay */}
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                border: '1px solid rgba(16, 185, 129, 0.12)',
-                background: 'linear-gradient(rgba(16, 185, 129, 0.03) 50%, rgba(0, 0, 0, 0) 50%), linear-gradient(90deg, rgba(16, 185, 129, 0.03) 50%, rgba(0, 0, 0, 0) 50%)',
-                backgroundSize: '8px 8px'
-              }} />
-              
-              {/* Glow scan line */}
-              <div style={{
-                position: 'absolute',
-                left: 0,
-                width: '100%',
-                height: '2px',
-                background: 'rgba(16, 185, 129, 0.6)',
-                boxShadow: '0 0 8px rgba(16, 185, 129, 0.8)',
-                animation: 'scan 4s linear infinite',
-                top: '0%'
-              }} />
 
               <span style={{ position: 'absolute', bottom: '8px', left: '8px', fontSize: '9px', fontWeight: '800', background: 'rgba(0,0,0,0.6)', padding: '3px 6px', borderRadius: '4px', letterSpacing: '0.5px' }}>
-                📷 WEBCAM FEED
+                📷 PRIMARY WEBCAM FEED
               </span>
             </div>
+
+            {/* Secondary Desk Camera Stream Viewport */}
+            {isMobileCamPaired && (
+              <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: '8px', overflow: 'hidden', background: '#05070c', border: '1px solid rgba(255,255,255,0.06)', position: 'relative' }}>
+                {/* Simulated hands-on-desk grid canvas feed */}
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'radial-gradient(circle at center, #090e1a, #010408)',
+                  position: 'relative'
+                }}>
+                  {/* Live geometric wireframe hands/desk feed using SVG */}
+                  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" style={{ opacity: 0.25, transform: 'scale(1.2)' }}>
+                    <path d="M12 40 L20 28 L32 36 L44 24 L52 40" stroke="var(--accent-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="32" cy="18" r="4" stroke="var(--accent-primary)" strokeWidth="2" />
+                    <rect x="8" y="44" width="48" height="12" rx="2" stroke="var(--accent-primary)" strokeWidth="2" />
+                  </svg>
+
+                  {/* Scanning grid HUD */}
+                  <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                    border: '1px solid rgba(99, 102, 241, 0.08)',
+                    background: 'linear-gradient(rgba(99, 102, 241, 0.02) 50%, rgba(0, 0, 0, 0) 50%), linear-gradient(90deg, rgba(99, 102, 241, 0.02) 50%, rgba(0, 0, 0, 0) 50%)',
+                    backgroundSize: '12px 12px'
+                  }} />
+
+                  <span style={{ fontSize: '10px', fontWeight: '700', color: 'var(--accent-primary)', textShadow: '0 0 8px rgba(99,102,241,0.5)', animation: 'pulse 2s infinite' }}>
+                    🟢 SEC_CAM: ACTIVE (DESK)
+                  </span>
+                  
+                  <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '8px', color: 'rgba(255,255,255,0.4)', fontWeight: 'bold' }}>
+                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--accent-success)', animation: 'pulse 1.2s infinite' }} />
+                    <span>LIVE WebRTC</span>
+                  </div>
+                </div>
+
+                <span style={{ position: 'absolute', bottom: '8px', left: '8px', fontSize: '9px', fontWeight: '800', background: 'rgba(0,0,0,0.6)', padding: '3px 6px', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                  📱 MOBILE FEED (DESK VIEW)
+                </span>
+              </div>
+            )}
 
             {/* Microphone volume tracker */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -1130,8 +1270,9 @@ export default function ExamPage() {
               </div>
             )}
 
+
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
-              Proctored Session: Face alignment and room sound levels are evaluated dynamically.
+              Proctored Session: Primary webcam stream, environment desk camera, and room sound levels are evaluated dynamically.
             </div>
           </div>        </div>
 
@@ -1201,7 +1342,7 @@ export default function ExamPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                   <span style={{ color: 'var(--accent-danger)', fontWeight: '700' }}>2.</span>
-                  <span><strong>Three-Strike Disqualification:</strong> If you accumulate <strong>3 strikes</strong>, the quiz session is instantly terminated, automatically graded, and locked.</span>
+                  <span><strong>Five-Strike Disqualification:</strong> If you accumulate <strong>5 strikes</strong>, the quiz session is instantly terminated, automatically graded, and locked.</span>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                   <span style={{ color: 'var(--accent-primary)', fontWeight: '700' }}>3.</span>
@@ -1388,7 +1529,7 @@ export default function ExamPage() {
             </h2>
             
             <p style={{ fontSize: '15px', lineHeight: '1.6', color: 'var(--text-secondary)', margin: 0 }}>
-              You have been disqualified for committing **3 proctoring strikes** (including tab-switching, exiting fullscreen, or losing window focus).
+              You have been disqualified for committing **5 proctoring strikes** (including tab-switching, exiting fullscreen, or losing window focus).
             </p>
 
             <div style={{

@@ -75,6 +75,8 @@ export default function AdminDashboard() {
   const [correctOption, setCorrectOption] = useState('A');
   const [questionType, setQuestionType] = useState('SINGLE');
   const [questionMarks, setQuestionMarks] = useState('1');
+  const [questionImage, setQuestionImage] = useState(null);
+  const [imageInputKey, setImageInputKey] = useState(0);
 
   // Review attempts details modal state
   const [selectedAttempt, setSelectedAttempt] = useState(null);
@@ -83,9 +85,12 @@ export default function AdminDashboard() {
   const [activeSubTab, setActiveSubTab] = useState('stats'); // 'stats' | 'quizzes' | 'questions'
   const [loading, setLoading] = useState(true);
   const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [isChartMounted, setIsChartMounted] = useState(false);
 
   useEffect(() => {
     fetchAdminData();
+    const timer = setTimeout(() => setIsChartMounted(true), 250);
+    return () => clearTimeout(timer);
   }, []);
 
   // Fetch questions whenever the selected quiz changes in the Question Manager tab
@@ -159,6 +164,22 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert("File size exceeds 2MB limit.");
+        e.target.value = "";
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => setQuestionImage(reader.result);
+      reader.readAsDataURL(file);
+    } else {
+      setQuestionImage(null);
+    }
+  };
+
   const handleAddQuestion = async (e) => {
     e.preventDefault();
     if (!selectedQuizId || !questionText || !optionA || !optionB || !optionC || !optionD || !correctOption) {
@@ -175,7 +196,8 @@ export default function AdminDashboard() {
         optionD,
         correctOption,
         questionType,
-        marks: parseInt(questionMarks)
+        marks: parseInt(questionMarks),
+        questionImage
       });
 
       alert('Question added successfully!');
@@ -187,6 +209,8 @@ export default function AdminDashboard() {
       setCorrectOption('A');
       setQuestionType('SINGLE');
       setQuestionMarks('1');
+      setQuestionImage(null);
+      setImageInputKey(prev => prev + 1);
 
       // Refresh question list
       fetchQuestions(selectedQuizId);
@@ -347,24 +371,26 @@ export default function AdminDashboard() {
                       <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>No statistics recorded.</div>
                     ) : (
                       <div style={{ width: '100%', height: '320px' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={stats.quizPerformance} margin={{ top: 10, right: -5, left: -25, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="passRateBarGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#a855f7" stopOpacity={0.4} />
-                                <stop offset="100%" stopColor="#a855f7" stopOpacity={0.05} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                            <XAxis dataKey="title" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis yAxisId="left" stroke="#c084fc" fontSize={11} tickLine={false} axisLine={false} unit="%" domain={[0, 100]} />
-                            <YAxis yAxisId="right" orientation="right" stroke="#818cf8" fontSize={11} tickLine={false} axisLine={false} unit=" pts" />
-                            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
-                            <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', paddingBottom: '10px' }} />
-                            <Bar yAxisId="left" dataKey="passRate" fill="url(#passRateBarGrad)" stroke="#a855f7" strokeWidth={1} radius={[6, 6, 0, 0]} name="Pass Rate (%)" barSize={36} />
-                            <Line yAxisId="right" type="monotone" dataKey="avgScore" stroke="#6366f1" strokeWidth={3} dot={{ r: 5, stroke: '#6366f1', strokeWidth: 2, fill: '#111827' }} activeDot={{ r: 7, stroke: '#818cf8', strokeWidth: 2, fill: '#6366f1' }} name="Average Score (Points)" />
-                          </ComposedChart>
-                        </ResponsiveContainer>
+                        {isChartMounted && (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={stats.quizPerformance} margin={{ top: 10, right: -5, left: -25, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="passRateBarGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#a855f7" stopOpacity={0.4} />
+                                  <stop offset="100%" stopColor="#a855f7" stopOpacity={0.05} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                              <XAxis dataKey="title" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
+                              <YAxis yAxisId="left" stroke="#c084fc" fontSize={11} tickLine={false} axisLine={false} unit="%" domain={[0, 100]} />
+                              <YAxis yAxisId="right" orientation="right" stroke="#818cf8" fontSize={11} tickLine={false} axisLine={false} unit=" pts" />
+                              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                              <Legend verticalAlign="top" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', paddingBottom: '10px' }} />
+                              <Bar yAxisId="left" dataKey="passRate" fill="url(#passRateBarGrad)" stroke="#a855f7" strokeWidth={1} radius={[6, 6, 0, 0]} name="Pass Rate (%)" barSize={36} />
+                              <Line yAxisId="right" type="monotone" dataKey="avgScore" stroke="#6366f1" strokeWidth={3} dot={{ r: 5, stroke: '#6366f1', strokeWidth: 2, fill: '#111827' }} activeDot={{ r: 7, stroke: '#818cf8', strokeWidth: 2, fill: '#6366f1' }} name="Average Score (Points)" />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        )}
                       </div>
                     )}
                   </div>
@@ -683,6 +709,46 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Diagram / Photo (Optional)</label>
+                    <input
+                      key={imageInputKey}
+                      type="file"
+                      accept="image/*"
+                      className="glass-input"
+                      onChange={handleImageChange}
+                      style={{ padding: '8px 12px', cursor: 'pointer' }}
+                    />
+                    {questionImage && (
+                      <div style={{ position: 'relative', marginTop: '8px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--glass-border)', display: 'inline-block', maxWidth: '100%' }}>
+                        <img src={questionImage} alt="Preview" style={{ maxHeight: '150px', objectFit: 'contain', display: 'block' }} />
+                        <button
+                          type="button"
+                          onClick={() => { setQuestionImage(null); setImageInputKey(prev => prev + 1); }}
+                          style={{
+                            position: 'absolute',
+                            top: '4px',
+                            right: '4px',
+                            background: 'rgba(239, 68, 68, 0.8)',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'white',
+                            cursor: 'pointer',
+                            fontSize: '10px',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          X
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '8px' }}>
                     <Plus size={16} />
                     <span>Save MCQ</span>
@@ -746,6 +812,12 @@ export default function AdminDashboard() {
                           <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', lineHeight: '1.4' }}>
                             {q.questionText}
                           </p>
+
+                          {q.questionImage && (
+                            <div style={{ margin: '12px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--glass-border)', display: 'inline-block', maxWidth: '100%' }}>
+                              <img src={q.questionImage} alt="Question Diagram" style={{ maxHeight: '180px', objectFit: 'contain', display: 'block' }} />
+                            </div>
+                          )}
 
                           {/* Options grid with green highlight for correctOption */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
@@ -898,6 +970,12 @@ export default function AdminDashboard() {
                       <p style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', lineHeight: '1.4' }}>
                         {qText}
                       </p>
+
+                      {ans.question.questionImage && (
+                        <div style={{ margin: '12px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--glass-border)', display: 'inline-block', maxWidth: '100%' }}>
+                          <img src={ans.question.questionImage} alt="Question Diagram" style={{ maxHeight: '180px', objectFit: 'contain', display: 'block' }} />
+                        </div>
+                      )}
 
                       <div style={{ display: 'flex', gap: '24px', fontSize: '13px' }}>
                         <div>

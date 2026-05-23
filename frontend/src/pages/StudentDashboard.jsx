@@ -641,6 +641,12 @@ export default function StudentDashboard() {
                         {qText}
                       </p>
 
+                      {ans.question.questionImage && (
+                        <div style={{ margin: '12px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--glass-border)', display: 'inline-block', maxWidth: '100%' }}>
+                          <img src={ans.question.questionImage} alt="Question Diagram" style={{ maxHeight: '180px', objectFit: 'contain', display: 'block' }} />
+                        </div>
+                      )}
+
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
                         <div>
                           <span style={{ color: 'var(--text-secondary)' }}>Your Selection: </span>

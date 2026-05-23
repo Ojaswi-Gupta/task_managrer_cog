@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const { translateOptionFromStudent } = require('../utils/shuffler');
 
 const startAttempt = async (req, res) => {
   const { quizId } = req.body;
@@ -105,7 +106,13 @@ const submitAttempt = async (req, res) => {
     const answersToCreate = [];
 
     for (const question of questions) {
-      const selectedOption = answersMap.get(question.id) || null;
+      const selectedOptionShuffled = answersMap.get(question.id) || null;
+      
+      // Reverse-translate the selected option to map back to original database keys
+      const selectedOption = selectedOptionShuffled 
+        ? translateOptionFromStudent(selectedOptionShuffled, attempt.id, question.id) 
+        : null;
+
       let isCorrect = false;
       let marksEarned = 0.0;
 
@@ -200,8 +207,8 @@ const trackCheating = async (req, res) => {
       }
     });
 
-    // Auto-lock / submit if strikes reach 3
-    if (updatedAttempt.cheatingStrikes >= 3) {
+    // Auto-lock / submit if strikes reach 5
+    if (updatedAttempt.cheatingStrikes >= 5) {
       // Trigger forced submission
       // We will read preexisting selections (if any) and trigger a force submit
       const currentAnswers = await prisma.attemptAnswer.findMany({

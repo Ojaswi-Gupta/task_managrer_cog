@@ -1,4 +1,5 @@
 const prisma = require('../prisma');
+const { shuffleQuestionsAndOptions } = require('../utils/shuffler');
 
 // --- Quiz CRUD Operations ---
 
@@ -111,7 +112,7 @@ const deleteQuiz = async (req, res) => {
 
 const addQuestionToQuiz = async (req, res) => {
   const { id } = req.params; // Quiz ID
-  const { questionText, optionA, optionB, optionC, optionD, correctOption, questionType, marks } = req.body;
+  const { questionText, optionA, optionB, optionC, optionD, correctOption, questionType, marks, questionImage } = req.body;
 
   if (!questionText || !optionA || !optionB || !optionC || !optionD || !correctOption) {
     return res.status(400).json({ error: 'Question text, all four options, and correctOption (A/B/C/D) are required' });
@@ -133,7 +134,8 @@ const addQuestionToQuiz = async (req, res) => {
         optionD,
         correctOption: correctOption.toUpperCase(),
         questionType: questionType || 'SINGLE',
-        marks: marks ? parseInt(marks) : 1
+        marks: marks ? parseInt(marks) : 1,
+        questionImage: questionImage || null
       }
     });
 
@@ -180,14 +182,19 @@ const getQuizQuestionsForStudent = async (req, res) => {
         optionC: true,
         optionD: true,
         questionType: true,
-        marks: true
+        marks: true,
+        questionImage: true
       }
     });
 
-    // Interview Booster: Dynamic Question/Option Shuffling (Optional request handler, simple shuffle here)
-    const shuffledQuestions = questions.sort(() => Math.random() - 0.5);
+    const attemptId = req.query.attemptId ? parseInt(req.query.attemptId) : null;
 
-    res.status(200).json(shuffledQuestions);
+    // Algorithmic shuffling of question sequence and option choices deterministically based on attemptId
+    const processedQuestions = attemptId 
+      ? shuffleQuestionsAndOptions(questions, attemptId)
+      : questions;
+
+    res.status(200).json(processedQuestions);
   } catch (err) {
     console.error('Get questions student error:', err);
     res.status(500).json({ error: 'Failed to retrieve exam questions' });
