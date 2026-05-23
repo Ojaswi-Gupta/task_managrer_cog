@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { BarChart2, Plus, Users, BookOpen, Activity, AlertTriangle, ShieldCheck, Trash2, LogOut, CheckCircle, HelpCircle, Eye, X, Calendar, ShieldAlert } from 'lucide-react';
 
-const API_URL = 'http://localhost:5001/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 // Custom, premium glassmorphic tooltip for the analytics chart
 const CustomTooltip = ({ active, payload }) => {
