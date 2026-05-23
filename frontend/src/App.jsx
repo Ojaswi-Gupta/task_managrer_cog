@@ -5,6 +5,7 @@ import { Sun, Moon } from 'lucide-react';
 
 // Components
 import ThreeCanvas from './components/ThreeCanvas';
+import QuizBot from './components/QuizBot';
 
 // Pages
 import Login from './pages/Login';
@@ -85,6 +86,9 @@ function AppContent() {
 
       {/* Floating Theme Switcher */}
       <ThemeToggle />
+
+      {/* Floating QuizBot AI Companion */}
+      <QuizBot />
 
       <Routes>
         {/* Public Auth Endpoint */}
