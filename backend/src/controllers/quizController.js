@@ -139,6 +139,17 @@ const addQuestionToQuiz = async (req, res) => {
       }
     });
 
+    // Dynamically recalculate and update totalMarks on the Quiz
+    const allQuestions = await prisma.question.findMany({
+      where: { quizId: parseInt(id) }
+    });
+    const totalMarks = allQuestions.reduce((sum, q) => sum + q.marks, 0);
+
+    await prisma.quiz.update({
+      where: { id: parseInt(id) },
+      data: { totalMarks }
+    });
+
     res.status(201).json({ message: 'Question added successfully', question });
   } catch (err) {
     console.error('Add question error:', err);
@@ -205,8 +216,29 @@ const deleteQuestion = async (req, res) => {
   const { questionId } = req.params;
 
   try {
+    const question = await prisma.question.findUnique({
+      where: { id: parseInt(questionId) }
+    });
+
+    if (!question) {
+      return res.status(404).json({ error: 'Question not found' });
+    }
+
+    const quizId = question.quizId;
+
     await prisma.question.delete({
       where: { id: parseInt(questionId) }
+    });
+
+    // Dynamically recalculate and update totalMarks on the Quiz
+    const allQuestions = await prisma.question.findMany({
+      where: { quizId }
+    });
+    const totalMarks = allQuestions.reduce((sum, q) => sum + q.marks, 0);
+
+    await prisma.quiz.update({
+      where: { id: quizId },
+      data: { totalMarks }
     });
 
     res.status(200).json({ message: 'Question deleted successfully' });

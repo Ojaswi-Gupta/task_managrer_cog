@@ -10,6 +10,29 @@ const certificateRoutes = require('./src/routes/certificateRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const prisma = require('./src/prisma');
+
+// Self-healing database synchronizer to dynamically keep totalMarks aligned with question marks sums
+async function syncQuizzesTotalMarks() {
+  try {
+    const quizzes = await prisma.quiz.findMany({
+      include: { questions: true }
+    });
+    for (const quiz of quizzes) {
+      const actualTotalMarks = quiz.questions.reduce((sum, q) => sum + q.marks, 0);
+      if (quiz.totalMarks !== actualTotalMarks) {
+        await prisma.quiz.update({
+          where: { id: quiz.id },
+          data: { totalMarks: actualTotalMarks }
+        });
+        console.log(`[Sync] Corrected Quiz "${quiz.title}" (ID: ${quiz.id}) totalMarks from ${quiz.totalMarks} to ${actualTotalMarks}`);
+      }
+    }
+  } catch (err) {
+    console.warn('[Sync] Failed to sync total marks on startup:', err);
+  }
+}
+syncQuizzesTotalMarks();
 
 // Enable CORS
 app.use(cors({
