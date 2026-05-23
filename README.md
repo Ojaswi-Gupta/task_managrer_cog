@@ -8,11 +8,15 @@ This platform marries a powerful, secure backend grading engine with a gorgeous,
 
 ## 🚀 Distinctive Technical Highlights
 
-### 1. 🛡️ Proctoring Anti-Cheat Engine (Multi-Strike System)
-Built with academic integrity in mind, the platform implements a client-side tab visibility listener and browser blur tracker:
-* If a student leaves the exam screen, opens developer tools, switches tabs, or minimizes the browser, the interface locks and fires a warning alert.
-* Each transgression registers a **Cheating Strike** synced with the backend in real time.
-* Upon triggering **3 strikes**, the backend proctoring mechanism immediately fires a **Force Submit**, grading all completed questions up to that point, locking the student out of the exam, and flagging the attempt in the Admin control center.
+### 1. 🛡️ Proctoring Anti-Cheat Engine (Multi-Layered Strike System)
+Built with academic integrity in mind, the platform implements a highly advanced, multi-layered proctoring engine:
+* **Focus & Event Interceptors:** Monitors visibility state changes, focus transitions (`blur`), and capturing-phase keyboard sequences (blocking developer consoles `F12`, `Cmd+Opt+I`, and page source lookups `Cmd+Opt+U`).
+* **Permission Prompt Focus Safeguard:** Holds event listeners, selection cleaners, and polling loops completely **dormant** while browser camera/microphone permission dialogues are active. It employs a `1.2s` focus-restoration delay after permissions are resolved, **completely eliminating false cheating strikes** during initial calibration prompts.
+* **Frosted Selection & Blur Lockout Workspace:** Blurs the entire question bank and navigation sidebar (`filter: blur(12px)`) with a centered frosted loading card (**"🔒 Secure Workspace Locked"**) while permissions are active. It smoothly unblurs into crystal-clear text the exact millisecond calibration completes.
+* **Continuous Fullscreen Polling Hook (300ms Loop):** Since desktop browsers suppress standard keydown events for `Escape` during fullscreen exits for security, this active background thread polls `document.fullscreenElement` every 300ms. Exiting fullscreen by pressing `ESC` once instantly evaluates active state as `null`, registering the violation strike and locking the screen within 300ms.
+* **High-Frequency Selection Cleansing Hook (100ms Loop):** Wipes out any active text selection ranges every 100ms in the background. Highlighting or selecting even a single character is physically impossible, completely neutralizing highlight bypasses or drag-to-cheat browser extensions.
+* **Modern Clipboard Shielding:** Overrides modern `navigator.clipboard.writeText` APIs during exams to discard extension writes, and intercepts standard `copy`/`cut`/`paste` event buffers to overwrite clipboard data with a warning text (`⚠️ COPYING PROHIBITED IN SECURE EXAM ⚠️`).
+* **Brutal Disqualification & Submission:** Each transgression registers a persistent cheating strike. Upon triggering **3 strikes** (or failing to re-enter secure fullscreen within 5 seconds), the engine triggers an automatic disqualification and grades the quiz instantly, locking the student out.
 
 ### 2. ⏱️ Resilient Stateful Exam Timer (Anti-Tampering)
 Standard client-side timers are easily manipulated by modifying browser variables or pausing execution. This portal resolves this with a resilient backend-driven synchronization model:
@@ -115,8 +119,10 @@ erDiagram
 
 ## 🚀 Getting Started (Local Run Guide)
 
-### Prerequisites
-* Ensure you have [Node.js (v18 or higher)](https://nodejs.org) installed on your system.
+### System & Hardware Requirements
+* **Node.js**: Ensure you have [Node.js (v18 or higher)](https://nodejs.org) installed.
+* **Camera & Microphone**: Required for proctoring calibration and decibel noise visualization.
+* **Modern Desktop Browser**: Compatible with Google Chrome (v100+), Safari (v15+), Mozilla Firefox, or Microsoft Edge. (Mobile/Tablet web browsers are not supported due to device-level fullscreen constraints).
 
 ---
 
