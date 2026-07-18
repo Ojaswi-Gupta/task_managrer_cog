@@ -35,6 +35,17 @@ Standard client-side timers are easily manipulated by modifying browser variable
 * Automatically unlocks and generates downloadable PDFs for students who achieve a passing grade of **$\ge 60\%$** on any assessment.
 * Employs authenticated download tokens mapped inside the auth middleware to allow direct browser opening securely.
 
+### 5. 👨‍🏫 Granular Administrative Controls & Modularity
+* **Answer Release Toggle:** Admins can suppress instant answer visibility after exam submission (via a database `releaseAnswers` flag). This guarantees exam integrity for rolling submissions, allowing the admin to release answers globally once all students have completed the test.
+* **Quiz Reopening:** Admins can manually force-reopen a quiz (extending `closesAt` dynamically) for students who faced technical difficulties or require extended time.
+* **Cohort & Section Routing:** Instead of global open access, quizzes can be firmly attached to specific classroom `Cohorts` (e.g. "Computer Science - Section A").
+* **Early Submission:** The "Submit Quiz" button is decoupled from the last question and permanently anchored to the side navigation panel, allowing confident students to conclude their exams without navigating to the final screen.
+
+### 6. 💎 Premium UI Architecture & Glassmorphic Modals
+* **Collapsible Dashboards:** The Admin sidebar operates on reactive state hooks to smoothly collapse/expand, maximizing the screen real estate for massive data tables.
+* **Componentized Modals:** To eliminate scrolling fatigue and visual clutter, all core entity creations (Create Quiz, Add Question, Create Section, Register Student) operate in self-contained, centralized popup overlays.
+* **Intelligent Dropdowns:** Instead of forcing redundant tab-switching, dropdown selectors (e.g. within the Question Bank) instantly reload relative UI components dynamically using robust state-driven queries.
+
 ---
 
 ## 🛠️ Technology Stack
@@ -57,6 +68,8 @@ Below is the structured representation of the SQLite schema managed via **Prisma
 
 ```mermaid
 erDiagram
+    Cohort ||--o{ User : "students"
+    Cohort ||--o{ Quiz : "quizzes"
     User ||--o{ Attempt : "attempts"
     Quiz ||--o{ Question : "questions"
     Quiz ||--o{ Attempt : "attempts"
@@ -69,6 +82,14 @@ erDiagram
         String email UK
         String password
         String role "STUDENT | ADMIN"
+        Int cohortId FK
+        DateTime createdAt
+    }
+
+    Cohort {
+        Int id PK
+        String name
+        String section
         DateTime createdAt
     }
 
@@ -80,6 +101,10 @@ erDiagram
         Int totalMarks
         Float negativeMarks
         Boolean isPublished
+        Boolean releaseAnswers
+        Int cohortId FK
+        DateTime opensAt
+        DateTime closesAt
         DateTime createdAt
     }
 
@@ -91,8 +116,10 @@ erDiagram
         String optionB
         String optionC
         String optionD
-        String correctOption "A | B | C | D"
+        String correctOption "A | A,B"
+        String questionType "SINGLE | MULTIPLE"
         Int marks
+        String questionImage "URL"
     }
 
     Attempt {
