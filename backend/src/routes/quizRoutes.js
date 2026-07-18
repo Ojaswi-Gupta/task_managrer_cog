@@ -14,7 +14,8 @@ const {
   createCohort,
   createCohortStudent,
   deleteCohort,
-  deleteStudent
+  deleteStudent,
+  reopenQuiz
 } = require('../controllers/quizController');
 const { authenticate, requireAdmin } = require('../middleware/authMiddleware');
 
@@ -31,6 +32,7 @@ router.get('/:id', authenticate, getQuizById);
 router.post('/', authenticate, requireAdmin, createQuiz);
 router.put('/:id', authenticate, requireAdmin, updateQuiz);
 router.delete('/:id', authenticate, requireAdmin, deleteQuiz);
+router.post('/:id/reopen', authenticate, requireAdmin, reopenQuiz);
 
 router.post('/:id/questions', authenticate, requireAdmin, addQuestionToQuiz);
 router.get('/:id/questions', authenticate, requireAdmin, getQuizQuestions);

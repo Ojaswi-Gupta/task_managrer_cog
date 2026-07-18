@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { BarChart2, Plus, Users, BookOpen, Activity, AlertTriangle, ShieldCheck, Trash2, LogOut, CheckCircle, HelpCircle, Eye, X, Calendar, ShieldAlert, Download } from 'lucide-react';
+import { BarChart2, Plus, Users, BookOpen, Activity, AlertTriangle, ShieldCheck, Trash2, LogOut, CheckCircle, HelpCircle, Eye, X, Calendar, ShieldAlert, Download, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
@@ -98,8 +98,15 @@ export default function AdminDashboard() {
 
   const [activeSubTab, setActiveSubTab] = useState('stats'); // 'stats' | 'quizzes' | 'questions'
   const [loading, setLoading] = useState(true);
-  const [questionsLoading, setQuestionsLoading] = useState(false);
   const [isChartMounted, setIsChartMounted] = useState(false);
+  
+  // New UI states
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [showSectionModal, setShowSectionModal] = useState(false);
+  const [showStudentModal, setShowStudentModal] = useState(false);
+  const [questionsLoading, setQuestionsLoading] = useState(false);
 
   useEffect(() => {
     fetchAdminData();
@@ -184,6 +191,7 @@ export default function AdminDashboard() {
       setClosesAt('');
 
       fetchAdminData();
+      setShowQuizModal(false);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to create quiz');
     }
@@ -243,6 +251,7 @@ export default function AdminDashboard() {
 
       // Refresh question list
       fetchQuestions(selectedQuizId);
+      setShowQuestionModal(false);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to add question');
     }
@@ -274,6 +283,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleReopenQuiz = async (quizId) => {
+    const minutes = window.prompt("Enter the number of minutes to reopen the quiz for:", "60");
+    if (minutes === null) return; 
+    
+    try {
+      await axios.post(`${API_URL}/quizzes/${quizId}/reopen`, {
+        addMinutes: parseInt(minutes) || 60
+      });
+      alert('Quiz reopened successfully!');
+      fetchAdminData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to reopen quiz');
+    }
+  };
+
   const handleTogglePublish = async (quiz) => {
     try {
       await axios.put(`${API_URL}/quizzes/${quiz.id}`, {
@@ -282,6 +306,17 @@ export default function AdminDashboard() {
       fetchAdminData();
     } catch (err) {
       alert('Failed to update quiz visibility.');
+    }
+  };
+
+  const handleToggleReleaseAnswers = async (quiz) => {
+    try {
+      await axios.put(`${API_URL}/quizzes/${quiz.id}`, {
+        releaseAnswers: !quiz.releaseAnswers
+      });
+      fetchAdminData();
+    } catch (err) {
+      alert('Failed to update release answers status.');
     }
   };
 
@@ -307,6 +342,7 @@ export default function AdminDashboard() {
       setNewCohortName('');
       setNewCohortSection('');
       fetchAdminData();
+      setShowSectionModal(false);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to create section');
     }
@@ -330,6 +366,7 @@ export default function AdminDashboard() {
       setNewStudentEmail('');
       setNewStudentPassword('');
       fetchAdminData();
+      setShowStudentModal(false);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to register student');
     }
@@ -360,67 +397,141 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', paddingBottom: '60px' }}>
-      
-      {/* Header */}
-      <header
-        className="glass-panel"
-        style={{
-          margin: '24px',
-          padding: '16px 24px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderRadius: '12px'
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-primary)' }}>
+      {/* SIDEBAR NAVIGATION */}
+      <aside 
+        style={{ 
+          width: isSidebarExpanded ? '280px' : '88px', 
+          borderRight: '1px solid var(--glass-border)', 
+          background: 'rgba(15, 23, 42, 0.4)', 
+          padding: isSidebarExpanded ? '32px 24px' : '32px 16px', 
+          display: 'flex', 
+          flexDirection: 'column',
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          transition: 'all 0.3s ease',
+          alignItems: isSidebarExpanded ? 'stretch' : 'center'
         }}
       >
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '800' }}>
-            <span className="shimmer-text">QuizPortal Control Center</span>
-          </h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Welcome back, <strong style={{ color: 'white' }}>Administrator</strong> (Evaluation Management Systems)
-          </p>
+        <div style={{ marginBottom: '48px', display: 'flex', alignItems: 'center', justifyContent: isSidebarExpanded ? 'space-between' : 'center', width: '100%' }}>
+          {isSidebarExpanded && (
+            <div>
+              <h1 style={{ fontSize: '20px', fontWeight: '800', marginBottom: '4px', lineHeight: '1.2' }}>
+                <span className="shimmer-text">QuizPortal Admin</span>
+              </h1>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>
+                Evaluation Systems
+              </p>
+            </div>
+          )}
+          <button 
+            onClick={() => setIsSidebarExpanded(!isSidebarExpanded)} 
+            style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '4px', outline: 'none' }}
+          >
+            <Menu size={24} />
+          </button>
         </div>
-        <button className="glass-btn glass-btn-secondary" style={{ padding: '8px 16px' }} onClick={logout}>
-          <LogOut size={16} />
-          <span>Log Out</span>
-        </button>
-      </header>
+        
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, width: '100%' }}>
+          <button
+            className={`glass-btn ${activeSubTab === 'stats' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
+            style={{ 
+              justifyContent: isSidebarExpanded ? 'flex-start' : 'center', 
+              padding: '14px 20px', 
+              border: activeSubTab === 'stats' ? 'none' : '1px solid transparent', 
+              background: activeSubTab === 'stats' ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent', 
+              boxShadow: activeSubTab === 'stats' ? '0 4px 15px 0 rgba(99, 102, 241, 0.3)' : 'none',
+              color: activeSubTab === 'stats' ? 'white' : 'var(--text-secondary)'
+            }}
+            onClick={() => setActiveSubTab('stats')}
+            title="Dashboard"
+          >
+            <BarChart2 size={18} />
+            {isSidebarExpanded && <span style={{ fontSize: '15px' }}>Dashboard</span>}
+          </button>
+          
+          <button
+            className={`glass-btn ${activeSubTab === 'quizzes' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
+            style={{ 
+              justifyContent: isSidebarExpanded ? 'flex-start' : 'center', 
+              padding: '14px 20px', 
+              border: activeSubTab === 'quizzes' ? 'none' : '1px solid transparent', 
+              background: activeSubTab === 'quizzes' ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent', 
+              boxShadow: activeSubTab === 'quizzes' ? '0 4px 15px 0 rgba(99, 102, 241, 0.3)' : 'none',
+              color: activeSubTab === 'quizzes' ? 'white' : 'var(--text-secondary)'
+            }}
+            onClick={() => setActiveSubTab('quizzes')}
+            title="Quizzes"
+          >
+            <Plus size={18} />
+            {isSidebarExpanded && <span style={{ fontSize: '15px' }}>Quizzes</span>}
+          </button>
 
-      {/* Control Tabs */}
-      <div style={{ margin: '0 24px 24px 24px', display: 'flex', gap: '12px' }}>
-        <button
-          className={`glass-btn ${activeSubTab === 'stats' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
-          onClick={() => setActiveSubTab('stats')}
-        >
-          <BarChart2 size={16} />
-          <span>Portal Statistics & Audits</span>
-        </button>
-        <button
-          className={`glass-btn ${activeSubTab === 'quizzes' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
-          onClick={() => setActiveSubTab('quizzes')}
-        >
-          <Plus size={16} />
-          <span>Create Quizzes</span>
-        </button>
-        <button
-          className={`glass-btn ${activeSubTab === 'questions' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
-          onClick={() => setActiveSubTab('questions')}
-        >
-          <HelpCircle size={16} />
-          <span>Question Bank Manager</span>
-        </button>
-        <button
-          className={`glass-btn ${activeSubTab === 'sections' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
-          onClick={() => setActiveSubTab('sections')}
-        >
-          <Users size={16} />
-          <span>Classroom Sections & Students</span>
-        </button>
-      </div>
+          <button
+            className={`glass-btn ${activeSubTab === 'questions' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
+            style={{ 
+              justifyContent: isSidebarExpanded ? 'flex-start' : 'center', 
+              padding: '14px 20px', 
+              border: activeSubTab === 'questions' ? 'none' : '1px solid transparent', 
+              background: activeSubTab === 'questions' ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent', 
+              boxShadow: activeSubTab === 'questions' ? '0 4px 15px 0 rgba(99, 102, 241, 0.3)' : 'none',
+              color: activeSubTab === 'questions' ? 'white' : 'var(--text-secondary)'
+            }}
+            onClick={() => setActiveSubTab('questions')}
+            title="Question Bank"
+          >
+            <HelpCircle size={18} />
+            {isSidebarExpanded && <span style={{ fontSize: '15px' }}>Question Bank</span>}
+          </button>
 
-      <main style={{ padding: '0 24px' }}>
+          <button
+            className={`glass-btn ${activeSubTab === 'sections' ? 'glass-btn-primary' : 'glass-btn-secondary'}`}
+            style={{ 
+              justifyContent: isSidebarExpanded ? 'flex-start' : 'center', 
+              padding: '14px 20px', 
+              border: activeSubTab === 'sections' ? 'none' : '1px solid transparent', 
+              background: activeSubTab === 'sections' ? 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))' : 'transparent', 
+              boxShadow: activeSubTab === 'sections' ? '0 4px 15px 0 rgba(99, 102, 241, 0.3)' : 'none',
+              color: activeSubTab === 'sections' ? 'white' : 'var(--text-secondary)'
+            }}
+            onClick={() => setActiveSubTab('sections')}
+            title="Classrooms"
+          >
+            <Users size={18} />
+            {isSidebarExpanded && <span style={{ fontSize: '15px' }}>Classrooms</span>}
+          </button>
+        </nav>
+
+        <button 
+          className="glass-btn glass-btn-secondary" 
+          style={{ 
+            justifyContent: isSidebarExpanded ? 'flex-start' : 'center', 
+            padding: '14px 20px', 
+            color: 'var(--accent-danger)', 
+            border: '1px solid rgba(239, 68, 68, 0.2)', 
+            background: 'rgba(239, 68, 68, 0.05)',
+            width: '100%'
+          }} 
+          onClick={logout}
+          title="Log Out"
+        >
+          <LogOut size={18} />
+          {isSidebarExpanded && <span style={{ fontSize: '15px', fontWeight: '700' }}>Log Out</span>}
+        </button>
+      </aside>
+
+      {/* MAIN CONTENT AREA */}
+      <main style={{ flex: 1, padding: '40px 48px', overflowY: 'auto' }}>
+        <header style={{ marginBottom: '32px' }}>
+          <h2 style={{ fontSize: '28px', fontWeight: '800' }}>
+            {activeSubTab === 'stats' && 'Portal Statistics & Audits'}
+            {activeSubTab === 'quizzes' && 'Quiz Management'}
+            {activeSubTab === 'questions' && 'Question Bank'}
+            {activeSubTab === 'sections' && 'Classrooms & Students'}
+          </h2>
+          <p style={{ color: 'var(--text-secondary)', marginTop: '6px' }}>Welcome back, Administrator</p>
+        </header>
         {loading ? (
           <div style={{ textAlign: 'center', marginTop: '80px', color: 'var(--text-secondary)' }}>Compiling aggregate analytics...</div>
         ) : (
@@ -596,85 +707,18 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* 2. CREATE QUIZZES BOARD */}
+            {/* 2. QUIZZES BOARD */}
             {activeSubTab === 'quizzes' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px' }}>
-                {/* Quiz Creator Form */}
-                <form className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', alignSelf: 'start' }} onSubmit={handleCreateQuiz}>
-                  <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>Create New Assessment</h3>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Quiz Title</label>
-                    <input type="text" placeholder="Java Basics Evaluation" className="glass-input" required value={title} onChange={e => setTitle(e.target.value)} />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Description</label>
-                    <textarea rows="3" placeholder="Enter evaluation syllabus summary details..." className="glass-input" value={description} onChange={e => setDescription(e.target.value)} />
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Duration (Mins)</label>
-                      <input type="number" min="1" className="glass-input" required value={duration} onChange={e => setDuration(e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Total Marks</label>
-                      <input type="number" min="1" className="glass-input" required value={totalMarks} onChange={e => setTotalMarks(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Negative Marking Deduction</label>
-                    <input type="number" step="0.05" min="0" className="glass-input" required value={negativeMarks} onChange={e => setNegativeMarks(e.target.value)} />
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Cohort / Classroom</label>
-                    <select 
-                      className="glass-input" 
-                      value={cohortId} 
-                      onChange={e => setCohortId(e.target.value)}
-                      style={{ cursor: 'pointer' }}
-                    >
-                      <option value="">Unassigned (Open Access)</option>
-                      {cohorts.map(c => (
-                        <option key={c.id} value={c.id}>{c.name} - {c.section}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Opens At</label>
-                      <input 
-                        type="datetime-local" 
-                        className="glass-input" 
-                        value={opensAt} 
-                        onChange={e => setOpensAt(e.target.value)} 
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Closes At</label>
-                      <input 
-                        type="datetime-local" 
-                        className="glass-input" 
-                        value={closesAt} 
-                        onChange={e => setClosesAt(e.target.value)} 
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                    <input type="checkbox" id="publish-chk" style={{ cursor: 'pointer' }} checked={isPublished} onChange={e => setIsPublished(e.target.checked)} />
-                    <label htmlFor="publish-chk" style={{ fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>Publish Immediately</label>
-                  </div>
-
-                  <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                
+                {/* Header Action Row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Manage Assessments</h3>
+                  <button className="glass-btn glass-btn-primary" onClick={() => setShowQuizModal(true)}>
                     <Plus size={16} />
-                    <span>Create Quiz</span>
+                    <span>Add New Quiz</span>
                   </button>
-                </form>
+                </div>
 
                 {/* Quizzes List & Publishers */}
                 <div className="glass-panel" style={{ padding: '24px' }}>
@@ -713,26 +757,55 @@ export default function AdminDashboard() {
                               {quiz.totalMarks} Marks {quiz.negativeMarks > 0 && <span style={{ color: 'var(--accent-warning)', fontSize: '11px' }}>(-{quiz.negativeMarks})</span>}
                             </td>
                             <td style={{ padding: '16px 8px' }}>
-                              <button
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  cursor: 'pointer',
-                                  outline: 'none',
-                                  fontSize: '11px',
-                                  fontWeight: '700',
-                                  padding: '4px 8px',
-                                  borderRadius: '6px',
-                                  background: quiz.isPublished ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                  color: quiz.isPublished ? 'var(--accent-success)' : 'var(--accent-danger)'
-                                }}
-                                onClick={() => handleTogglePublish(quiz)}
-                              >
-                                {quiz.isPublished ? 'PUBLISHED' : 'DRAFT'}
-                              </button>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-start' }}>
+                                <button
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    background: quiz.isPublished ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                    color: quiz.isPublished ? 'var(--accent-success)' : 'var(--accent-danger)'
+                                  }}
+                                  onClick={() => handleTogglePublish(quiz)}
+                                >
+                                  {quiz.isPublished ? 'PUBLISHED' : 'DRAFT'}
+                                </button>
+                                <button
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    outline: 'none',
+                                    fontSize: '11px',
+                                    fontWeight: '700',
+                                    padding: '4px 8px',
+                                    borderRadius: '6px',
+                                    background: quiz.releaseAnswers ? 'rgba(16, 185, 129, 0.15)' : 'rgba(168, 85, 247, 0.15)',
+                                    color: quiz.releaseAnswers ? 'var(--accent-success)' : 'var(--accent-secondary)'
+                                  }}
+                                  onClick={() => handleToggleReleaseAnswers(quiz)}
+                                >
+                                  {quiz.releaseAnswers ? 'ANSWERS RELEASED' : 'ANSWERS HIDDEN'}
+                                </button>
+                              </div>
                             </td>
                             <td style={{ padding: '16px 8px', textAlign: 'right' }}>
                               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                {quiz.closesAt && new Date() > new Date(quiz.closesAt) && (
+                                  <button
+                                    className="glass-btn glass-btn-secondary"
+                                    title="Reopen Quiz"
+                                    style={{ padding: '6px', borderColor: 'var(--accent-success)', background: 'rgba(16, 185, 129, 0.02)' }}
+                                    onClick={() => handleReopenQuiz(quiz.id)}
+                                  >
+                                    <Activity size={14} style={{ color: 'var(--accent-success)' }} />
+                                  </button>
+                                )}
                                 <button
                                   className="glass-btn glass-btn-secondary"
                                   title="Export Gradebook CSV"
@@ -761,165 +834,39 @@ export default function AdminDashboard() {
 
             {/* 3. QUESTION MANAGER & BANK */}
             {activeSubTab === 'questions' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 2fr', gap: '24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
-                {/* Question Creator Form */}
-                <form className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', alignSelf: 'start' }} onSubmit={handleAddQuestion}>
-                  <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '8px' }}>Add New MCQ</h3>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Quiz Board</label>
+                {/* Header Action Row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Active Question Bank</h3>
                     <select
                       className="glass-input"
-                      required
                       value={selectedQuizId}
-                      onChange={e => setSelectedQuizId(e.target.value)}
+                      onChange={e => {
+                        setSelectedQuizId(e.target.value);
+                        fetchQuestions(e.target.value);
+                      }}
+                      style={{ padding: '8px 12px', minWidth: '220px', cursor: 'pointer' }}
                     >
-                      <option value="" disabled>-- Select Assessment --</option>
+                      <option value="">-- Select Assessment to View --</option>
                       {quizzes.map(q => (
                         <option key={q.id} value={q.id}>{q.title}</option>
                       ))}
                     </select>
                   </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Text</label>
-                    <input type="text" placeholder="e.g. Which keyword declares a block-scope variable?" className="glass-input" required value={questionText} onChange={e => setQuestionText(e.target.value)} />
-                  </div>
-
-                  {/* MCQ Options */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option A</label>
-                      <input type="text" placeholder="A" className="glass-input" style={{ padding: '8px 12px' }} required value={optionA} onChange={e => setOptionA(e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option B</label>
-                      <input type="text" placeholder="B" className="glass-input" style={{ padding: '8px 12px' }} required value={optionB} onChange={e => setOptionB(e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option C</label>
-                      <input type="text" placeholder="C" className="glass-input" style={{ padding: '8px 12px' }} required value={optionC} onChange={e => setOptionC(e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option D</label>
-                      <input type="text" placeholder="D" className="glass-input" style={{ padding: '8px 12px' }} required value={optionD} onChange={e => setOptionD(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Type</label>
-                    <select
-                      className="glass-input"
-                      required
-                      value={questionType}
-                      onChange={e => {
-                        setQuestionType(e.target.value);
-                        setCorrectOption(e.target.value === 'MULTIPLE' ? 'A' : 'A');
-                      }}
-                    >
-                      <option value="SINGLE">Single Choice (SCQ)</option>
-                      <option value="MULTIPLE">Multiple Choice (MCQ)</option>
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Correct Option Key</label>
-                      {questionType === 'SINGLE' ? (
-                        <select className="glass-input" required value={correctOption} onChange={e => setCorrectOption(e.target.value)}>
-                          <option value="A">A</option>
-                          <option value="B">B</option>
-                          <option value="C">C</option>
-                          <option value="D">D</option>
-                        </select>
-                      ) : (
-                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', height: '38px' }}>
-                          {['A', 'B', 'C', 'D'].map(ch => {
-                            const selectedKeys = correctOption.split(',');
-                            const isChecked = selectedKeys.includes(ch);
-                            return (
-                              <label key={ch} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={e => {
-                                    let newKeys;
-                                    if (e.target.checked) {
-                                      newKeys = [...selectedKeys.filter(k => k), ch];
-                                    } else {
-                                      newKeys = selectedKeys.filter(k => k !== ch);
-                                    }
-                                    setCorrectOption(newKeys.sort().join(','));
-                                  }}
-                                />
-                                <span>{ch}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Marks Value</label>
-                      <input type="number" min="1" className="glass-input" required value={questionMarks} onChange={e => setQuestionMarks(e.target.value)} />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Diagram / Photo (Optional)</label>
-                    <input
-                      key={imageInputKey}
-                      type="file"
-                      accept="image/*"
-                      className="glass-input"
-                      onChange={handleImageChange}
-                      style={{ padding: '8px 12px', cursor: 'pointer' }}
-                    />
-                    {questionImage && (
-                      <div style={{ position: 'relative', marginTop: '8px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--glass-border)', display: 'inline-block', maxWidth: '100%' }}>
-                        <img src={questionImage} alt="Preview" style={{ maxHeight: '150px', objectFit: 'contain', display: 'block' }} />
-                        <button
-                          type="button"
-                          onClick={() => { setQuestionImage(null); setImageInputKey(prev => prev + 1); }}
-                          style={{
-                            position: 'absolute',
-                            top: '4px',
-                            right: '4px',
-                            background: 'rgba(239, 68, 68, 0.8)',
-                            border: 'none',
-                            borderRadius: '50%',
-                            width: '20px',
-                            height: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: 'white',
-                            cursor: 'pointer',
-                            fontSize: '10px',
-                            fontWeight: 'bold'
-                          }}
-                        >
-                          X
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '8px' }}>
+                  <button className="glass-btn glass-btn-primary" onClick={() => setShowQuestionModal(true)}>
                     <Plus size={16} />
-                    <span>Save MCQ</span>
+                    <span>Add New Question</span>
                   </button>
-                </form>
+                </div>
 
-                {/* 📝 NEW: QUESTIONS BANK VIEW */}
+                {/* QUESTIONS BANK VIEW */}
                 <div className="glass-panel" style={{ padding: '24px' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '20px' }}>Active Question Bank</h3>
                   
                   {!selectedQuizId ? (
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                      Select a quiz on the left to load its question bank.
+                      Select a quiz from the dropdown above to load its question bank.
                     </div>
                   ) : questionsLoading ? (
                     <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
@@ -1007,114 +954,23 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {/* 4. CLASSROOM SECTIONS & STUDENTS VIEW */}
+            {/* 4. CLASSROOMS & STUDENTS */}
             {activeSubTab === 'sections' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.8fr', gap: '24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 
-                {/* Left Side: Create Section & Register Student Forms */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  
-                  {/* Form 1: Create Section */}
-                  <form className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleCreateSection}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Plus size={18} style={{ color: 'var(--accent-primary)' }} />
-                      <span>Create Classroom Section</span>
-                    </h3>
-                    
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Section / Class Name</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Computer Science" 
-                        className="glass-input" 
-                        required 
-                        value={newCohortName} 
-                        onChange={e => setNewCohortName(e.target.value)} 
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Section Code / Semester</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Section A" 
-                        className="glass-input" 
-                        required 
-                        value={newCohortSection} 
-                        onChange={e => setNewCohortSection(e.target.value)} 
-                      />
-                    </div>
-
-                    <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '4px' }}>
+                {/* Header Action Row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700' }}>Classroom Sections Directory</h3>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button className="glass-btn glass-btn-primary" onClick={() => setShowSectionModal(true)}>
                       <Plus size={16} />
-                      <span>Create Section</span>
+                      <span>Add Section</span>
                     </button>
-                  </form>
-
-                  {/* Form 2: Register Student */}
-                  <form className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleRegisterStudent}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Users size={18} style={{ color: 'var(--accent-primary)' }} />
-                      <span>Register & Enroll Student</span>
-                    </h3>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Student Name</label>
-                      <input 
-                        type="text" 
-                        placeholder="Alice Smith" 
-                        className="glass-input" 
-                        required 
-                        value={newStudentName} 
-                        onChange={e => setNewStudentName(e.target.value)} 
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Email Address</label>
-                      <input 
-                        type="email" 
-                        placeholder="alice@demo.com" 
-                        className="glass-input" 
-                        required 
-                        value={newStudentEmail} 
-                        onChange={e => setNewStudentEmail(e.target.value)} 
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Password</label>
-                      <input 
-                        type="password" 
-                        placeholder="••••••••" 
-                        className="glass-input" 
-                        required 
-                        value={newStudentPassword} 
-                        onChange={e => setNewStudentPassword(e.target.value)} 
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Section</label>
-                      <select 
-                        className="glass-input" 
-                        required 
-                        value={newStudentCohortId} 
-                        onChange={e => setNewStudentCohortId(e.target.value)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <option value="" disabled>-- Select Section --</option>
-                        {cohorts.map(c => (
-                          <option key={c.id} value={c.id}>{c.name} - {c.section}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '4px' }}>
-                      <Plus size={16} />
+                    <button className="glass-btn glass-btn-secondary" style={{ borderColor: 'var(--accent-primary)', color: 'var(--accent-primary)' }} onClick={() => setShowStudentModal(true)}>
+                      <Users size={16} />
                       <span>Register Student</span>
                     </button>
-                  </form>
+                  </div>
                 </div>
 
                 {/* Right Side: Sections & Students Directory List */}
@@ -1390,6 +1246,273 @@ export default function AdminDashboard() {
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* MODALS */}
+      {/* 1. Create Quiz Modal */}
+      {showQuizModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(10px)' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', position: 'relative' }}>
+            <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => setShowQuizModal(false)}>
+              <X size={24} />
+            </button>
+            <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleCreateQuiz}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '8px' }}>Create New Assessment</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Quiz Title</label>
+                <input type="text" placeholder="Java Basics Evaluation" className="glass-input" required value={title} onChange={e => setTitle(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Description</label>
+                <textarea rows="3" placeholder="Enter evaluation syllabus summary details..." className="glass-input" value={description} onChange={e => setDescription(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Duration (Mins)</label>
+                  <input type="number" min="1" className="glass-input" required value={duration} onChange={e => setDuration(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Total Marks</label>
+                  <input type="number" min="1" className="glass-input" required value={totalMarks} onChange={e => setTotalMarks(e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Negative Marking Deduction</label>
+                <input type="number" step="0.05" min="0" className="glass-input" required value={negativeMarks} onChange={e => setNegativeMarks(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Cohort / Classroom</label>
+                <select className="glass-input" value={cohortId} onChange={e => setCohortId(e.target.value)} style={{ cursor: 'pointer' }}>
+                  <option value="">Unassigned (Open Access)</option>
+                  {cohorts.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} - {c.section}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Opens At</label>
+                  <input type="datetime-local" className="glass-input" value={opensAt} onChange={e => setOpensAt(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Closes At</label>
+                  <input type="datetime-local" className="glass-input" value={closesAt} onChange={e => setClosesAt(e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                <input type="checkbox" id="publish-chk-modal" style={{ cursor: 'pointer' }} checked={isPublished} onChange={e => setIsPublished(e.target.checked)} />
+                <label htmlFor="publish-chk-modal" style={{ fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>Publish Immediately</label>
+              </div>
+
+              <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '10px' }}>
+                <Plus size={16} />
+                <span>Create Quiz</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Add Question Modal */}
+      {showQuestionModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(10px)' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', position: 'relative' }}>
+            <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => setShowQuestionModal(false)}>
+              <X size={24} />
+            </button>
+            <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleAddQuestion}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '8px' }}>Add New MCQ</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Quiz Board</label>
+                <select className="glass-input" required value={selectedQuizId} onChange={e => setSelectedQuizId(e.target.value)}>
+                  <option value="" disabled>-- Select Assessment --</option>
+                  {quizzes.map(q => (
+                    <option key={q.id} value={q.id}>{q.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Text</label>
+                <input type="text" placeholder="e.g. Which keyword declares a block-scope variable?" className="glass-input" required value={questionText} onChange={e => setQuestionText(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option A</label>
+                  <input type="text" placeholder="A" className="glass-input" style={{ padding: '8px 12px' }} required value={optionA} onChange={e => setOptionA(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option B</label>
+                  <input type="text" placeholder="B" className="glass-input" style={{ padding: '8px 12px' }} required value={optionB} onChange={e => setOptionB(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option C</label>
+                  <input type="text" placeholder="C" className="glass-input" style={{ padding: '8px 12px' }} required value={optionC} onChange={e => setOptionC(e.target.value)} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-secondary)' }}>Option D</label>
+                  <input type="text" placeholder="D" className="glass-input" style={{ padding: '8px 12px' }} required value={optionD} onChange={e => setOptionD(e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Type</label>
+                <select className="glass-input" required value={questionType} onChange={e => { setQuestionType(e.target.value); setCorrectOption(e.target.value === 'MULTIPLE' ? 'A' : 'A'); }}>
+                  <option value="SINGLE">Single Choice (SCQ)</option>
+                  <option value="MULTIPLE">Multiple Choice (MCQ)</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Correct Option Key</label>
+                  {questionType === 'SINGLE' ? (
+                    <select className="glass-input" required value={correctOption} onChange={e => setCorrectOption(e.target.value)}>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                    </select>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center', height: '38px' }}>
+                      {['A', 'B', 'C', 'D'].map(ch => {
+                        const selectedKeys = correctOption.split(',');
+                        const isChecked = selectedKeys.includes(ch);
+                        return (
+                          <label key={ch} style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', fontSize: '13px' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={e => {
+                                let newKeys;
+                                if (e.target.checked) {
+                                  newKeys = [...selectedKeys.filter(k => k), ch];
+                                } else {
+                                  newKeys = selectedKeys.filter(k => k !== ch);
+                                }
+                                setCorrectOption(newKeys.sort().join(','));
+                              }}
+                            />
+                            <span>{ch}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Marks Value</label>
+                  <input type="number" min="1" className="glass-input" required value={questionMarks} onChange={e => setQuestionMarks(e.target.value)} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Question Diagram (Optional)</label>
+                <input key={imageInputKey} type="file" accept="image/*" className="glass-input" onChange={handleImageChange} style={{ padding: '8px 12px', cursor: 'pointer' }} />
+                {questionImage && (
+                  <div style={{ position: 'relative', marginTop: '8px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--glass-border)', display: 'inline-block', maxWidth: '100%' }}>
+                    <img src={questionImage} alt="Preview" style={{ maxHeight: '150px', objectFit: 'contain', display: 'block' }} />
+                    <button type="button" onClick={() => { setQuestionImage(null); setImageInputKey(prev => prev + 1); }} style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(239, 68, 68, 0.8)', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer', fontSize: '10px', fontWeight: 'bold' }}>X</button>
+                  </div>
+                )}
+              </div>
+
+              <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '8px' }}>
+                <Plus size={16} />
+                <span>Save MCQ</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Create Section Modal */}
+      {showSectionModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(10px)' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', position: 'relative' }}>
+            <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => setShowSectionModal(false)}>
+              <X size={24} />
+            </button>
+            <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleCreateSection}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Plus size={18} style={{ color: 'var(--accent-primary)' }} />
+                <span>Create Classroom Section</span>
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Section Name</label>
+                <input type="text" placeholder="e.g. Computer Science" className="glass-input" required value={newCohortName} onChange={e => setNewCohortName(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Section Code</label>
+                <input type="text" placeholder="e.g. Section A" className="glass-input" required value={newCohortSection} onChange={e => setNewCohortSection(e.target.value)} />
+              </div>
+
+              <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '4px' }}>
+                <Plus size={16} />
+                <span>Create Section</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Register Student Modal */}
+      {showStudentModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', background: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(10px)' }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '400px', maxHeight: '90vh', overflowY: 'auto', padding: '32px', position: 'relative' }}>
+            <button style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }} onClick={() => setShowStudentModal(false)}>
+              <X size={24} />
+            </button>
+            <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleRegisterStudent}>
+              <h3 style={{ fontSize: '18px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={18} style={{ color: 'var(--accent-primary)' }} />
+                <span>Register & Enroll Student</span>
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Student Name</label>
+                <input type="text" placeholder="Alice Smith" className="glass-input" required value={newStudentName} onChange={e => setNewStudentName(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Email Address</label>
+                <input type="email" placeholder="alice@demo.com" className="glass-input" required value={newStudentEmail} onChange={e => setNewStudentEmail(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Password</label>
+                <input type="password" placeholder="••••••••" className="glass-input" required value={newStudentPassword} onChange={e => setNewStudentPassword(e.target.value)} />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-secondary)' }}>Target Section</label>
+                <select className="glass-input" required value={newStudentCohortId} onChange={e => setNewStudentCohortId(e.target.value)} style={{ cursor: 'pointer' }}>
+                  <option value="" disabled>-- Select Section --</option>
+                  {cohorts.map(c => (
+                    <option key={c.id} value={c.id}>{c.name} - {c.section}</option>
+                  ))}
+                </select>
+              </div>
+
+              <button type="submit" className="glass-btn glass-btn-primary" style={{ marginTop: '4px' }}>
+                <Plus size={16} />
+                <span>Register Student</span>
+              </button>
+            </form>
           </div>
         </div>
       )}

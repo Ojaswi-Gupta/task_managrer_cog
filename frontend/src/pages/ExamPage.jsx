@@ -1056,17 +1056,14 @@ export default function ExamPage() {
                   <span>Previous</span>
                 </button>
 
-                {isLastQuestion ? (
-                  <button className="glass-btn glass-btn-primary" style={{ background: 'linear-gradient(135deg, var(--accent-success), #059669)' }} onClick={handleManualSubmit}>
-                    <CheckCircle2 size={16} />
-                    <span>Submit Quiz</span>
-                  </button>
-                ) : (
-                  <button className="glass-btn glass-btn-secondary" onClick={() => setCurrentIdx(prev => prev + 1)}>
-                    <span>Next</span>
-                    <ChevronRight size={16} />
-                  </button>
-                )}
+                <button
+                  className="glass-btn glass-btn-secondary"
+                  disabled={isLastQuestion}
+                  onClick={() => setCurrentIdx(prev => prev + 1)}
+                >
+                  <span>Next</span>
+                  <ChevronRight size={16} />
+                </button>
               </div>
             </div>
           )}
@@ -1159,6 +1156,21 @@ export default function ExamPage() {
                 <span>Unanswered</span>
               </div>
             </div>
+
+            {/* Submission Button */}
+            <button 
+              className="glass-btn glass-btn-primary" 
+              style={{ 
+                marginTop: '12px',
+                background: 'linear-gradient(135deg, var(--accent-success), #059669)',
+                padding: '16px',
+                width: '100%'
+              }} 
+              onClick={handleManualSubmit}
+            >
+              <CheckCircle2 size={18} />
+              <span style={{ fontSize: '15px' }}>Submit Exam</span>
+            </button>
           </div>
 
           {/* 📹 SECURITY & PROCTORING CONSOLE */}

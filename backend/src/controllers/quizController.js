@@ -5,7 +5,7 @@ const { shuffleQuestionsAndOptions } = require('../utils/shuffler');
 // --- Quiz CRUD Operations ---
 
 const createQuiz = async (req, res) => {
-  const { title, description, duration, totalMarks, negativeMarks, isPublished, cohortId, opensAt, closesAt } = req.body;
+  const { title, description, duration, totalMarks, negativeMarks, isPublished, releaseAnswers, cohortId, opensAt, closesAt } = req.body;
 
   if (!title || !duration || totalMarks === undefined) {
     return res.status(400).json({ error: 'Title, duration (minutes), and totalMarks are required' });
@@ -20,6 +20,7 @@ const createQuiz = async (req, res) => {
         totalMarks: parseInt(totalMarks),
         negativeMarks: negativeMarks ? parseFloat(negativeMarks) : 0.0,
         isPublished: !!isPublished,
+        releaseAnswers: !!releaseAnswers,
         cohortId: cohortId ? parseInt(cohortId) : null,
         opensAt: opensAt ? new Date(opensAt) : null,
         closesAt: closesAt ? new Date(closesAt) : null
@@ -37,9 +38,15 @@ const getQuizzes = async (req, res) => {
   try {
     const isStudent = req.user.role === 'STUDENT';
     
-    // Students only see published quizzes assigned to their cohort, admins see all
+    // Students only see published quizzes assigned to their cohort, or open access (cohortId: null)
     const quizzes = await prisma.quiz.findMany({
-      where: isStudent ? { isPublished: true, cohortId: req.user.cohortId } : {},
+      where: isStudent ? { 
+        isPublished: true,
+        OR: [
+          { cohortId: req.user.cohortId },
+          { cohortId: null }
+        ]
+      } : {},
       include: { cohort: true },
       orderBy: { createdAt: 'desc' }
     });
@@ -68,7 +75,7 @@ const getQuizById = async (req, res) => {
       if (!quiz.isPublished) {
         return res.status(403).json({ error: 'Access denied: Quiz is not published yet' });
       }
-      if (quiz.cohortId !== req.user.cohortId) {
+      if (quiz.cohortId !== null && quiz.cohortId !== req.user.cohortId) {
         return res.status(403).json({ error: 'Access denied: You are not enrolled in the cohort assigned to this quiz' });
       }
     }
@@ -82,7 +89,7 @@ const getQuizById = async (req, res) => {
 
 const updateQuiz = async (req, res) => {
   const { id } = req.params;
-  const { title, description, duration, totalMarks, negativeMarks, isPublished, cohortId, opensAt, closesAt } = req.body;
+  const { title, description, duration, totalMarks, negativeMarks, isPublished, releaseAnswers, cohortId, opensAt, closesAt } = req.body;
 
   try {
     const quiz = await prisma.quiz.update({
@@ -94,6 +101,7 @@ const updateQuiz = async (req, res) => {
         totalMarks: totalMarks !== undefined ? parseInt(totalMarks) : undefined,
         negativeMarks: negativeMarks !== undefined ? parseFloat(negativeMarks) : undefined,
         isPublished: isPublished !== undefined ? !!isPublished : undefined,
+        releaseAnswers: releaseAnswers !== undefined ? !!releaseAnswers : undefined,
         cohortId: cohortId !== undefined ? (cohortId ? parseInt(cohortId) : null) : undefined,
         opensAt: opensAt !== undefined ? (opensAt ? new Date(opensAt) : null) : undefined,
         closesAt: closesAt !== undefined ? (closesAt ? new Date(closesAt) : null) : undefined
@@ -119,6 +127,32 @@ const deleteQuiz = async (req, res) => {
   } catch (err) {
     console.error('Delete quiz error:', err);
     res.status(500).json({ error: 'Failed to delete quiz' });
+  }
+};
+
+const reopenQuiz = async (req, res) => {
+  const { id } = req.params;
+  const { addMinutes } = req.body;
+  try {
+    const quiz = await prisma.quiz.findUnique({ where: { id: parseInt(id) } });
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+    
+    const minutesToAdd = addMinutes ? parseInt(addMinutes) : 60;
+    const baseTime = (quiz.closesAt && new Date(quiz.closesAt).getTime() > Date.now()) 
+      ? new Date(quiz.closesAt).getTime() 
+      : Date.now();
+      
+    const newClosesAt = new Date(baseTime + minutesToAdd * 60000);
+    
+    const updatedQuiz = await prisma.quiz.update({
+      where: { id: parseInt(id) },
+      data: { closesAt: newClosesAt }
+    });
+    
+    res.status(200).json({ message: 'Quiz reopened successfully', quiz: updatedQuiz });
+  } catch (err) {
+    console.error('Reopen quiz error:', err);
+    res.status(500).json({ error: 'Failed to reopen quiz' });
   }
 };
 
@@ -428,5 +462,6 @@ module.exports = {
   createCohort,
   createCohortStudent,
   deleteCohort,
-  deleteStudent
+  deleteStudent,
+  reopenQuiz
 };

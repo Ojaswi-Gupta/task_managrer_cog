@@ -640,6 +640,13 @@ export default function StudentDashboard() {
 
             {/* Answers List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {!selectedAttempt.quiz.releaseAnswers && (
+                <div style={{ padding: '16px', textAlign: 'center', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
+                    Detailed answers and correct options will be available once released by your instructor.
+                  </p>
+                </div>
+              )}
               {selectedAttempt.answers.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '20px' }}>
                   No answers were captured for this attempt (unanswered exam submission).
@@ -650,6 +657,7 @@ export default function StudentDashboard() {
                   const studentChoice = ans.selectedOption;
                   const correctChoice = ans.question.correctOption;
                   const isCorrect = ans.isCorrect;
+                  const releaseAnswers = selectedAttempt.quiz.releaseAnswers;
 
                   return (
                     <div
@@ -672,11 +680,17 @@ export default function StudentDashboard() {
                             fontWeight: '700',
                             padding: '2px 8px',
                             borderRadius: '4px',
-                            background: isCorrect ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)'
+                            background: releaseAnswers 
+                                ? (isCorrect ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)')
+                                : 'rgba(255, 255, 255, 0.1)',
+                            color: releaseAnswers
+                                ? (isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)')
+                                : 'var(--text-secondary)'
                           }}
                         >
-                          {isCorrect ? 'Correct (+Marks)' : studentChoice === null ? 'Skipped' : 'Incorrect (Neg Deducted)'}
+                          {releaseAnswers 
+                            ? (isCorrect ? 'Correct (+Marks)' : studentChoice === null ? 'Skipped' : 'Incorrect (Neg Deducted)')
+                            : 'Pending Release'}
                         </span>
                       </div>
 
@@ -693,14 +707,14 @@ export default function StudentDashboard() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
                         <div>
                           <span style={{ color: 'var(--text-secondary)' }}>Your Selection: </span>
-                          <strong style={{ color: studentChoice ? (isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)') : 'var(--text-muted)' }}>
+                          <strong style={{ color: releaseAnswers ? (studentChoice ? (isCorrect ? 'var(--accent-success)' : 'var(--accent-danger)') : 'var(--text-muted)') : 'white' }}>
                             {studentChoice ? (
                               studentChoice.split(',').map(choice => `${choice}: ${ans.question[`option${choice.trim()}`]}`).join(', ')
                             ) : '[Unanswered]'}
                           </strong>
                         </div>
                         
-                        {!isCorrect && (
+                        {releaseAnswers && !isCorrect && (
                           <div>
                             <span style={{ color: 'var(--text-secondary)' }}>Correct Answer Key: </span>
                             <strong style={{ color: 'var(--accent-success)' }}>

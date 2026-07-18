@@ -19,7 +19,7 @@ const startAttempt = async (req, res) => {
     }
 
     // 1. Enforce Cohort Access Rule
-    if (req.user.role === 'STUDENT' && quiz.cohortId !== req.user.cohortId) {
+    if (req.user.role === 'STUDENT' && quiz.cohortId !== null && quiz.cohortId !== req.user.cohortId) {
       return res.status(403).json({ error: 'Access denied: You are not enrolled in the cohort assigned to this quiz' });
     }
 

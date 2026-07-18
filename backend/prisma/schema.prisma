@@ -26,9 +26,10 @@ model Quiz {
   description   String?
   duration      Int        // in minutes
   totalMarks    Int
-  negativeMarks Float      @default(0.0)
-  isPublished   Boolean    @default(false)
-  cohortId      Int?
+  negativeMarks  Float      @default(0.0)
+  isPublished    Boolean    @default(false)
+  releaseAnswers Boolean    @default(false)
+  cohortId       Int?
   cohort        Cohort?    @relation(fields: [cohortId], references: [id], onDelete: SetNull)
   opensAt       DateTime?
   closesAt      DateTime?
